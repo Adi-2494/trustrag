@@ -70,6 +70,15 @@ COLLECTION_NAME = "trustrag_docs"                     # like a table name inside
 SCAN_CACHE_FILE = os.path.join(CHROMA_DIR, "scan_cache.json")  # saved injection-scan results
 
 # ---------------------------------------------------------------------------
+# OCR for scanned PDFs (pages that are pictures of text)
+# ---------------------------------------------------------------------------
+OCR_MIN_CHARS = 50        # a page with less real text than this is treated as scanned
+OCR_MAX_PAGES = 50        # safety limit on API cost per file
+OCR_MAX_TOKENS = 3000     # max length of one transcribed page
+OCR_WORKERS = 4           # pages transcribed in parallel (faster uploads)
+OCR_CACHE_FILE = os.path.join(CHROMA_DIR, "ocr_cache.json")  # saved OCR results
+
+# ---------------------------------------------------------------------------
 # Answer generation
 # ---------------------------------------------------------------------------
 REFUSAL_TEXT = "The documents do not contain this information."
