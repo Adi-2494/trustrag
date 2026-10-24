@@ -10,7 +10,8 @@ How the two layers are combined:
 - Weaker, ambiguous matches (e.g. "you are now ...") are dropped if the AI checked the chunk and says SAFE,
   which avoids false alarms on normal sentences.
 - If the AI says SUSPICIOUS, the highest risk from either layer is used.
-- If the AI could not check a chunk (e.g. a temporary error), the rules decide on their own.
+- If the AI could not check a chunk, even after one retry, the scanner fails closed: any rule match counts as HIGH.
+- The joins between neighbouring chunks are checked too, so an attack split across two chunks is still caught.
 
 Before the rules run, common disguises are undone (hidden characters, look-alike letters, s-p-a-c-e-d letters).
 Chunk text is escaped and wrapped in tags with a random code, so a chunk can't fake the end of its tag or a verdict.
@@ -184,6 +185,11 @@ def llm_scan(chunks: list[dict], file_hash: str, on_progress=None) -> dict[str, 
             if on_progress:
                 on_progress(done, len(batches))
 
+    # Retry what failed once, one batch at a time (a temporary error often clears quickly).
+    missed = [c for c in todo if c["id"] not in file_cache]
+    for i in range(0, len(missed), config.SCAN_BATCH_SIZE):
+        file_cache.update(scan_one(missed[i:i + config.SCAN_BATCH_SIZE]))
+
     if todo:
         cache[file_hash] = file_cache  # save successful results, so a retry only re-checks what failed
         _save_cache(cache)
@@ -194,11 +200,35 @@ def llm_scan(chunks: list[dict], file_hash: str, on_progress=None) -> dict[str, 
 # Combine both layers into one report
 # ---------------------------------------------------------------------------
 
+SPLIT_SUFFIX = " (split across sections)"
+
+
+def _is_strong(rule_name: str) -> bool:
+    return rule_name.removesuffix(SPLIT_SUFFIX) in STRONG_RULES
+
+
+def seam_hits(chunks: list[dict]) -> dict[str, list[tuple[str, str]]]:
+    """
+    Check the joins between neighbouring chunks (also across pages), so an attack split in two halves -
+    end of one chunk + start of the next - is still caught. Returns {chunk_id: [(rule name, risk), ...]}.
+    """
+    hits = {}
+    for first, second in zip(chunks, chunks[1:]):
+        seam = first["text"][-config.SEAM_CHARS:] + " " + second["text"][:config.SEAM_CHARS]
+        already = {name for name, _ in rule_scan(first["text"]) + rule_scan(second["text"])}
+        new = [(name + SPLIT_SUFFIX, risk) for name, risk in rule_scan(seam) if name not in already]
+        for chunk in (first, second):
+            if new:
+                hits.setdefault(chunk["id"], []).extend(new)
+    return hits
+
+
 def combine_results(chunks: list[dict], llm_results: dict[str, dict]) -> list[dict]:
     """Merge rule hits and AI verdicts into a list of flagged chunks (see the rules at the top of this file)."""
     flagged = []
+    split_hits = seam_hits(chunks)
     for chunk in chunks:
-        rule_hits = rule_scan(chunk["text"])
+        rule_hits = rule_scan(chunk["text"]) + split_hits.get(chunk["id"], [])
         llm = llm_results.get(chunk["id"])
         llm_suspicious = llm is not None and llm["verdict"] == "SUSPICIOUS"
 
@@ -207,11 +237,12 @@ def combine_results(chunks: list[dict], llm_results: dict[str, dict]) -> list[di
             risks = [risk for _, risk in rule_hits] + [llm["risk"]]
         elif llm is not None:
             # The AI checked it and says SAFE: strong attack phrases still count (HIGH), weak matches are dropped.
-            rule_hits = [(name, risk) for name, risk in rule_hits if name in STRONG_RULES]
+            rule_hits = [(name, risk) for name, risk in rule_hits if _is_strong(name)]
             risks = [risk for _, risk in rule_hits]
         else:
-            # The AI could not check this chunk: the rules decide on their own.
-            risks = [risk for _, risk in rule_hits]
+            # The AI could not check this chunk (e.g. an attacker used up the usage limit to switch it off).
+            # Fail closed: without the AI's second opinion, any rule match is treated as HIGH.
+            risks = ["HIGH"] if rule_hits else []
 
         if not risks:
             continue

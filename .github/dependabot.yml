@@ -1,0 +1,16 @@
+# Dependabot opens a pull request when a pinned dependency has a newer (e.g. security-fixed) version,
+# so strict pinning doesn't mean falling behind on security patches.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

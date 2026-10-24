@@ -209,12 +209,15 @@ with st.sidebar:
     upload_area = st.container()  # filled below, once we know the security setting
 
     st.subheader("🛡️ Security")
-    excluded_risks = st.multiselect(
-        "Remove flagged sections with risk level",
-        options=["HIGH", "MEDIUM", "LOW"],
-        default=config.DEFAULT_EXCLUDED_RISKS,
-        help="Uploaded documents are scanned for hidden prompt-injection attacks before they are indexed.",
+    required = config.DEFAULT_EXCLUDED_RISKS  # set by the administrator; users can't remove these
+    st.caption(f"Always removed: {', '.join(required) or 'none'} risk sections (set by the administrator).")
+    extra = st.multiselect(
+        "Also remove",
+        options=[r for r in ["HIGH", "MEDIUM", "LOW"] if r not in required],
+        help="Uploaded documents are scanned for hidden prompt-injection attacks before they are indexed. "
+             "You can make this stricter, but not weaker.",
     )
+    excluded_risks = sorted(set(required) | set(extra), key=["HIGH", "MEDIUM", "LOW"].index)
 
     with upload_area:
         uploaded_files = st.file_uploader(

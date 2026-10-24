@@ -121,4 +121,7 @@ CLAUDE_TOKEN_FILE = os.getenv("CLAUDE_TOKEN_FILE", "/run/secrets/claude_code_oau
 # ---------------------------------------------------------------------------
 SCAN_BATCH_SIZE = 10                 # chunks per Haiku call
 SCAN_WORKERS = 4                     # batches checked in parallel (faster scans of big files)
-DEFAULT_EXCLUDED_RISKS = ["HIGH"]    # flagged chunks with these risk levels are left out
+SEAM_CHARS = 300                     # characters on each side of a chunk join checked for split attacks
+# Risk levels that are ALWAYS removed (set by the administrator, e.g. SCAN_EXCLUDED_RISKS=HIGH,MEDIUM).
+# Users can make the app stricter in the sidebar, but never weaker than this.
+DEFAULT_EXCLUDED_RISKS = [r.strip().upper() for r in os.getenv("SCAN_EXCLUDED_RISKS", "HIGH").split(",") if r.strip()]

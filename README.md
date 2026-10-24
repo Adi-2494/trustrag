@@ -184,8 +184,8 @@ cd trustrag
 python3.11 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Install dependencies (exact, hash-verified versions)
+pip install --require-hashes --no-deps -r requirements.lock
 
 # 4. Create your settings file (the default uses your Claude subscription)
 cp .env.example .env
@@ -313,7 +313,7 @@ extend and maintain.
 pytest -v
 ```
 
-82 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
+91 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
 injection scanner (attack phrases that must be caught, real-world false alarms that must not be, batching, caching
 and fault tolerance), the subscription connector, and a **security regression suite** (`tests/test_security.py`)
 that replays each attack from an internal red-team review and checks it now fails. The suite makes **no API calls**
@@ -365,8 +365,16 @@ a per-file OCR page limit, sensible `max_tokens`, and a live API-call counter in
   Docker examples bind to `127.0.0.1` only.
 - **Secrets:** in Docker, the subscription token can be mounted as a read-only secret file
   (`/run/secrets/claude_code_oauth_token`), which keeps it out of `docker inspect` and the container environment.
-- Scan batches fail independently: if the AI can't check some sections (e.g. a temporary error), the free
-  rule-based layer covers them, the report says how many sections the AI checked, and a retry re-checks only those.
+- **Split attacks:** the joins between neighbouring sections (including across pages) are checked too, so an
+  instruction split in two halves is still caught.
+- **Fail closed:** failed AI scan batches are retried once; if the AI still can't check a section, any rule match
+  there is treated as HIGH and removed. Switching off the AI check (e.g. by exhausting the usage limit) makes the
+  scanner stricter, not weaker.
+- **Admin-controlled policy:** the risk levels that are always removed are set by the administrator
+  (`SCAN_EXCLUDED_RISKS`, default `HIGH`). Users can make the scan stricter in the sidebar, never weaker.
+- **Supply chain:** `requirements.lock` pins every package (122, including indirect ones) to an exact version and
+  file hash, and Docker/CI install with `--require-hashes`, so a tampered package is refused. Base images are pinned
+  by digest, CI actions by commit, the embedding model is checksum-verified, and Dependabot proposes security updates.
 - **Known limits:** the trust score measures support by *your* documents, not whether those documents are true; and
   no filter catches every possible prompt injection, which is why the layers above overlap.
 
