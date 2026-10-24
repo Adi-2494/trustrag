@@ -13,6 +13,7 @@ from src.chunker import chunk_pages
 from src.generator import generate_answer, is_refusal
 from src.llm import LLMError
 from src.loader import LoaderError, load_pdf
+from src.verifier import verify_answer
 
 st.set_page_config(page_title="TrustRAG", page_icon="🛡️", layout="wide")
 
@@ -26,6 +27,44 @@ if "last_result" not in st.session_state:
 def file_hash(data: bytes) -> str:
     """A fingerprint of the file's contents, so we can recognise the same file again."""
     return hashlib.sha256(data).hexdigest()
+
+
+def trust_color(score: float) -> str:
+    """Green >= 80%, orange 50-79%, red < 50% (thresholds live in config.py)."""
+    if score >= config.TRUST_GREEN:
+        return "green"
+    if score >= config.TRUST_ORANGE:
+        return "orange"
+    return "red"
+
+
+def show_verification(verification: dict | None) -> None:
+    """Show the trust score and the claim-by-claim fact-check."""
+    st.subheader("🔍 Fact-check")
+    if verification is None:
+        st.warning("The answer could not be fact-checked this time, so treat it with extra care.")
+        return
+    if verification["refused"]:
+        st.success("Correctly refused – no unsupported claims.")
+        return
+    score = verification["trust_score"]
+    if score is None:
+        st.info("No factual claims were found in the answer to check.")
+        return
+
+    color = trust_color(score)
+    st.markdown(f"### Trust score: :{color}[{score:.0f}%]")
+    st.progress(score / 100)
+
+    icons = {"SUPPORTED": "✅", "PARTIALLY_SUPPORTED": "⚠️", "NOT_SUPPORTED": "❌"}
+    for claim in verification["claims"]:
+        st.markdown(f"{icons[claim['status']]} **{claim['claim']}**")
+        if claim["quote"]:
+            source = f"{claim['file_name']}, p.{claim['page']}" if claim["file_name"] else "source unknown"
+            note = "" if claim["quote_found"] else " *(quote not found word-for-word in the sources)*"
+            st.caption(f"“{claim['quote']}” — {source}{note}")
+        elif claim["reason"]:
+            st.caption(claim["reason"])
 
 
 def process_upload(uploaded_file) -> None:
@@ -99,7 +138,16 @@ if asked:
             with st.spinner("Searching your documents and writing an answer..."):
                 chunks = vectorstore.retrieve(question)
                 answer = generate_answer(question, chunks)
-            st.session_state.last_result = {"question": question, "answer": answer, "chunks": chunks}
+            # The fact-check is a bonus: if it fails, still show the answer (with a warning).
+            verification = None
+            with st.spinner("Fact-checking the answer..."):
+                try:
+                    verification = verify_answer(answer, chunks)
+                except LLMError:
+                    pass
+            st.session_state.last_result = {
+                "question": question, "answer": answer, "chunks": chunks, "verification": verification,
+            }
             st.rerun()  # re-run so the sidebar API counter shows the new number
         except LLMError as e:
             st.error(str(e))
@@ -112,6 +160,8 @@ if result:
         st.info(result["answer"])
     else:
         st.markdown(result["answer"])
+
+    show_verification(result.get("verification"))
 
     with st.expander(f"📚 Sources used ({len(result['chunks'])} chunks)"):
         for chunk in result["chunks"]:
