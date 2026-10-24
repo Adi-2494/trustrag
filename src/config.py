@@ -65,7 +65,7 @@ TOP_K = 4              # how many chunks to retrieve per question
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
-CHROMA_DIR = "chroma_db"                              # folder for the vector database
+CHROMA_DIR = os.getenv("CHROMA_DIR", "chroma_db")     # folder for the vector database
 COLLECTION_NAME = "trustrag_docs"                     # like a table name inside ChromaDB
 SCAN_CACHE_FILE = os.path.join(CHROMA_DIR, "scan_cache.json")  # saved injection-scan results
 
