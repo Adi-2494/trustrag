@@ -21,3 +21,24 @@ jobs:
 
       - name: Run tests (no API key needed)
         run: pytest -v
+
+  docker:
+    # Proves the Docker image builds for both chip types: amd64 (Windows/Intel/cloud) and arm64 (Apple Silicon/ARM).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (lets one machine build for other chip types)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build multi-arch image (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

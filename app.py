@@ -5,12 +5,14 @@ Run with:  streamlit run app.py
 """
 
 import hashlib
+import time
 
 import streamlit as st
 
 from src import config, llm, vectorstore
 from src.chunker import chunk_pages
 from src.generator import generate_answer, is_refusal
+from src.injection_scanner import filter_chunks, scan_chunks
 from src.llm import LLMError
 from src.loader import LoaderError, load_pdf
 from src.verifier import verify_answer
@@ -22,6 +24,10 @@ if "processed_files" not in st.session_state:
     st.session_state.processed_files = set()   # hashes of files already added
 if "last_result" not in st.session_state:
     st.session_state.last_result = None        # the most recent question + answer
+if "scan_reports" not in st.session_state:
+    st.session_state.scan_reports = {}         # file name -> injection scan report
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0          # changing this gives a fresh, empty upload box
 
 
 def file_hash(data: bytes) -> str:
@@ -67,23 +73,69 @@ def show_verification(verification: dict | None) -> None:
             st.caption(claim["reason"])
 
 
-def process_upload(uploaded_file) -> None:
-    """Load -> chunk -> store one uploaded PDF, showing progress and friendly errors."""
+def process_upload(uploaded_file, excluded_risks: list[str]) -> None:
+    """Load -> chunk -> injection scan -> store one uploaded PDF, with friendly errors."""
     data = uploaded_file.getvalue()
     fingerprint = file_hash(data)
-    if fingerprint in st.session_state.processed_files:
-        return  # already done in this session
+    # Include the exclusion setting, so changing it re-processes the file (scan results are cached = free).
+    key = f"{fingerprint}:{','.join(sorted(excluded_risks))}"
+    if key in st.session_state.processed_files:
+        return  # already done in this session with these settings
 
-    with st.spinner(f"Processing {uploaded_file.name}... (scanned pages are read with OCR and take longer)"):
+    with st.spinner(f"Reading and security-scanning {uploaded_file.name}..."):
         try:
             pages = load_pdf(uploaded_file, uploaded_file.name)
             chunks = chunk_pages(pages)
-            vectorstore.add_chunks(chunks)
+            progress = st.empty()
+            report = scan_chunks(
+                chunks, fingerprint,
+                on_progress=lambda done, total: progress.caption(f"Security scan: batch {done} of {total} checked"),
+            )
+            progress.empty()
+            safe_chunks = filter_chunks(chunks, report, excluded_risks)
+            vectorstore.delete_file(uploaded_file.name)  # remove any older version of this file first
+            vectorstore.add_chunks(safe_chunks)
         except (LoaderError, LLMError) as e:
-            st.sidebar.error(f"{uploaded_file.name}: {e}")
+            st.error(f"{uploaded_file.name}: {e}")
             return
-    st.session_state.processed_files.add(fingerprint)
-    st.sidebar.success(f"✅ Successfully read {uploaded_file.name}")
+
+    report["excluded_risks"] = list(excluded_risks)
+    st.session_state.scan_reports[uploaded_file.name] = report
+    st.session_state.processed_files.add(key)
+    st.success(f"✅ Successfully read {uploaded_file.name}")
+    removed = len(chunks) - len(safe_chunks)
+    if removed:
+        st.warning(f"🛡️ {removed} suspicious section(s) removed from {uploaded_file.name}. See the Security report.")
+
+
+def show_security_report() -> None:
+    """Show what the injection scanner found in each uploaded file."""
+    reports = st.session_state.scan_reports
+    if not reports:
+        return
+    total_flagged = sum(len(r["flagged"]) for r in reports.values())
+    title = f"🛡️ Security report: 🔴 {total_flagged} suspicious section(s) found (click to view)" if total_flagged \
+        else "🛡️ Security report: no prompt-injection attempts found"
+    with st.expander(title):
+        icons = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}
+        for file_name, report in reports.items():
+            st.markdown(f"**{file_name}**: {report['scanned']} sections scanned, {len(report['flagged'])} flagged")
+            if not report["llm_checked"]:
+                st.caption(
+                    f"AI checked {report.get('ai_checked', 0)} of {report['scanned']} sections (a temporary error "
+                    "affected the rest; the rule-based scan covered them). To retry, click 'Clear all documents' "
+                    "and upload the file again - sections already checked are reused for free."
+                )
+            for item in report["flagged"]:
+                excluded = item["risk"] in report["excluded_risks"]
+                status = "removed from the index" if excluded else "kept in the index"
+                st.markdown(f"{icons[item['risk']]} **{item['risk']} risk**, page {item['page']} · *{status}*")
+                if item["rules"]:
+                    st.caption("Matched rules: " + ", ".join(item["rules"]))
+                if item["reason"]:
+                    st.caption("AI reason: " + item["reason"])
+                st.text(item["text"][:300] + ("..." if len(item["text"]) > 300 else ""))
+            st.divider()
 
 
 # ---------------------------------------------------------------------------
@@ -91,10 +143,25 @@ def process_upload(uploaded_file) -> None:
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("📄 Documents")
-    uploaded_files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
-    for uploaded_file in uploaded_files or []:
-        process_upload(uploaded_file)
+    upload_area = st.container()  # filled below, once we know the security setting
 
+    st.subheader("🛡️ Security")
+    excluded_risks = st.multiselect(
+        "Remove flagged sections with risk level",
+        options=["HIGH", "MEDIUM", "LOW"],
+        default=config.DEFAULT_EXCLUDED_RISKS,
+        help="Uploaded documents are scanned for hidden prompt-injection attacks before they are indexed.",
+    )
+
+    with upload_area:
+        uploaded_files = st.file_uploader(
+            "Upload PDFs", type="pdf", accept_multiple_files=True,
+            key=f"uploader_{st.session_state.uploader_key}",
+        )
+        for uploaded_file in uploaded_files or []:
+            process_upload(uploaded_file, excluded_risks)
+
+    st.divider()
     files = vectorstore.list_files()
     if files:
         st.caption("Your documents:")
@@ -104,6 +171,8 @@ with st.sidebar:
             vectorstore.clear()
             st.session_state.processed_files = set()
             st.session_state.last_result = None
+            st.session_state.scan_reports = {}
+            st.session_state.uploader_key += 1  # also empty the upload box, so files aren't re-added
             st.rerun()
     else:
         st.caption("No documents yet.")
@@ -123,6 +192,8 @@ if key_problem:
     st.error(key_problem)
     st.stop()  # nothing else works without a key
 
+show_security_report()
+
 # A form lets the user press Enter to submit.
 with st.form("question_form"):
     question = st.text_input("Your question", placeholder="e.g. How many days of annual leave do I get?")
@@ -135,18 +206,20 @@ if asked:
         st.warning("Please upload at least one PDF first.")
     else:
         try:
-            with st.spinner("Searching your documents and writing an answer..."):
+            started = time.time()
+            with st.spinner("Step 1 of 2: searching your documents and writing an answer (usually 5–10 seconds)..."):
                 chunks = vectorstore.retrieve(question)
                 answer = generate_answer(question, chunks)
             # The fact-check is a bonus: if it fails, still show the answer (with a warning).
             verification = None
-            with st.spinner("Fact-checking the answer..."):
+            with st.spinner("Step 2 of 2: fact-checking the answer (usually 5–10 seconds)..."):
                 try:
                     verification = verify_answer(answer, chunks)
                 except LLMError:
                     pass
             st.session_state.last_result = {
                 "question": question, "answer": answer, "chunks": chunks, "verification": verification,
+                "seconds": round(time.time() - started, 1),
             }
             st.rerun()  # re-run so the sidebar API counter shows the new number
         except LLMError as e:
@@ -155,7 +228,7 @@ if asked:
 result = st.session_state.last_result
 if result:
     st.subheader("Answer")
-    st.caption(f"Question: {result['question']}")
+    st.caption(f"Question: {result['question']} · answered and fact-checked in {result.get('seconds', '?')}s")
     if is_refusal(result["answer"]):
         st.info(result["answer"])
     else:

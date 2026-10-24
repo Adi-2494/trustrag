@@ -1,0 +1,7 @@
+# Keep Unix (LF) line endings for every text file, even when the repo is cloned on Windows.
+# Without this, Windows Git may convert files to CRLF, which can break the Dockerfile and shell commands in Linux containers.
+* text=auto eol=lf
+
+# Binary files: never touch
+*.pdf binary
+*.png binary

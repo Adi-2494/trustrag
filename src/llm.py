@@ -2,6 +2,11 @@
 The ONLY file that talks to Claude.
 Other files call call_claude() or call_claude_json() and never touch the SDK directly.
 This keeps API keys, retries and error handling in one place.
+
+Three ways to reach Claude (chosen with LLM_PROVIDER in .env):
+- "claude_code": your Claude subscription, through the Claude Code CLI (no API key) - see claude_code.py
+- "anthropic":   the Anthropic API with an API key
+- "bedrock":     AWS Bedrock with a Bedrock API key
 """
 
 import json
@@ -10,7 +15,7 @@ import re
 
 import anthropic
 
-from src import config
+from src import claude_code, config
 
 
 class LLMError(Exception):
@@ -30,6 +35,8 @@ def get_call_count() -> int:
 
 def missing_key_message() -> str | None:
     """Return a friendly message if the API key for the chosen provider is missing, else None."""
+    if config.PROVIDER == "claude_code" and not claude_code.is_installed():
+        return "Claude Code is not installed. Install it, run `claude` once and log in with your Claude subscription."
     if config.PROVIDER == "bedrock" and not os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
         return "No Bedrock API key found. Add AWS_BEARER_TOKEN_BEDROCK to your .env file and restart the app."
     if config.PROVIDER == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
@@ -65,6 +72,15 @@ def call_claude(model: str, system: str, prompt: str | list, max_tokens: int, ef
     `prompt` is normally a string; it can also be a list of content blocks (e.g. an image + text).
     """
     global _call_count
+
+    # Subscription mode: hand the request to Claude Code instead of the API.
+    if config.PROVIDER == "claude_code":
+        _call_count += 1
+        try:
+            return claude_code.ask(model, system, prompt, effort)
+        except claude_code.ClaudeCodeError as e:
+            raise LLMError(str(e))
+
     client = _get_client()
 
     # Build the request. "effort" is only sent when the model supports it.

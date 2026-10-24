@@ -14,7 +14,8 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # Which service we use to reach Claude: "anthropic" (direct API) or "bedrock" (AWS)
 # ---------------------------------------------------------------------------
-PROVIDER = os.getenv("LLM_PROVIDER", "anthropic").strip().lower()
+# "claude_code" (default) uses your Claude subscription through the Claude Code CLI - no API key needed.
+PROVIDER = os.getenv("LLM_PROVIDER", "claude_code").strip().lower()
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 # Model names differ per provider. "answer" writes the reply, "checker" does the
@@ -22,6 +23,12 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 # "effort" controls how hard the model thinks; None means "don't send it"
 # (Haiku 4.5 does not support the effort setting).
 MODELS = {
+    "claude_code": {
+        "answer": "claude-sonnet-5-5",
+        "answer_effort": "low",
+        "checker": "claude-haiku-5-5",
+        "checker_effort": "low",
+    },
     "anthropic": {
         "answer": "claude-sonnet-5-5",
         "answer_effort": "low",
@@ -37,7 +44,7 @@ MODELS = {
 }
 
 if PROVIDER not in MODELS:
-    raise ValueError(f"LLM_PROVIDER must be 'anthropic' or 'bedrock', got '{PROVIDER}'")
+    raise ValueError(f"LLM_PROVIDER must be 'claude_code', 'anthropic' or 'bedrock', got '{PROVIDER}'")
 
 ANSWER_MODEL = MODELS[PROVIDER]["answer"]
 ANSWER_EFFORT = MODELS[PROVIDER]["answer_effort"]
@@ -54,6 +61,9 @@ SCAN_MAX_TOKENS = 2000
 
 # How many times to retry when the API is busy (rate limit / overloaded).
 MAX_RETRIES = 3
+
+# Subscription mode: max seconds to wait for one Claude Code reply.
+CLAUDE_CODE_TIMEOUT = 120
 
 # ---------------------------------------------------------------------------
 # Chunking and retrieval
@@ -93,4 +103,5 @@ TRUST_ORANGE = 50  # 50-79% is orange, below 50% is red
 # Injection scanner
 # ---------------------------------------------------------------------------
 SCAN_BATCH_SIZE = 10                 # chunks per Haiku call
+SCAN_WORKERS = 4                     # batches checked in parallel (faster scans of big files)
 DEFAULT_EXCLUDED_RISKS = ["HIGH"]    # flagged chunks with these risk levels are left out

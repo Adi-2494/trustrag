@@ -61,6 +61,11 @@ def retrieve(question: str, top_k: int = config.TOP_K) -> list[dict]:
     return chunks
 
 
+def delete_file(file_name: str) -> None:
+    """Remove all chunks of one file (used before re-adding it with different scan settings)."""
+    _get_collection().delete(where={"file_name": file_name})
+
+
 def list_files() -> list[str]:
     """Names of all files currently stored (for the sidebar)."""
     metadatas = _get_collection().get(include=["metadatas"])["metadatas"]
