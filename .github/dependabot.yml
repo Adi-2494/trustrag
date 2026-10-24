@@ -10,6 +10,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # The project and its hash-locked dependencies target Python 3.11; moving to a new Python minor version
+      # is a deliberate upgrade (re-lock + re-test), not an automatic bump.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Stay on Node's long-term-support line; only accept patch/minor updates within it.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
