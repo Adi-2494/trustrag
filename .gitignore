@@ -1,0 +1,19 @@
+# Secrets - NEVER commit your real API key
+.env
+
+# Local vector database (rebuilt from your PDFs, no need to commit)
+chroma_db/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+
+# Test cache
+.pytest_cache/
+
+# macOS junk
+.DS_Store

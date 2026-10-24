@@ -1,0 +1,9 @@
+# Pinned versions so the project installs the same way everywhere.
+anthropic==2.2.0                  # Claude API (official SDK)
+streamlit==1.66.1                 # Web UI
+chromadb==1.5.9                   # Local vector database + built-in MiniLM embeddings
+langchain-text-splitters==1.1.3   # RecursiveCharacterTextSplitter for chunking
+pypdf==6.21.2                     # Read text from PDFs
+python-dotenv==1.2.4              # Load ANTHROPIC_API_KEY from .env
+pytest==9.1.1                     # Unit tests
+reportlab==5.1.0                  # Only used by scripts/make_injection_pdf.py to create demo PDFs
