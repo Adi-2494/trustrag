@@ -1,12 +1,14 @@
 """
-The ONLY file that talks to Claude.
-Other files call call_claude() or call_claude_json() and never touch the SDK directly.
-This keeps API keys, retries and error handling in one place.
+The single entry point to Claude.
 
-Three ways to reach Claude (chosen with LLM_PROVIDER in .env):
-- "claude_code": your Claude subscription, through the Claude Code CLI (no API key) - see claude_code.py
+Three ways to reach Claude (LLM_PROVIDER):
+- "claude_code": a Claude subscription, through the Claude Code CLI (no API key) - see claude_code.py
 - "anthropic":   the Anthropic API with an API key
 - "bedrock":     AWS Bedrock with a Bedrock API key
+
+Every call goes through the app-wide rate limit (shared across processes), is counted, and is logged with
+its purpose, prompt version, model, token usage, cost and latency - never with prompt or answer text.
+Pipeline modules receive the client as an `LLMClient`, so tests and alternative providers can be injected.
 """
 
 import json
@@ -14,47 +16,59 @@ import os
 import re
 import threading
 import time
-from collections import deque
+from typing import Any, Protocol
 
 import anthropic
 
-from src import claude_code, config
+from src import claude_code, config, state
+from src.observability import METRICS, event
+
+# USD per million tokens (input, output) - used for cost reporting only.
+_PRICES = {
+    "claude-sonnet-5-5": (2.0, 10.0),
+    "claude-haiku-5-5": (0.10, 0.50),
+    "anthropic.claude-opus-5-5": (4.0, 20.0),
+    "anthropic.claude-haiku-4-5": (1.0, 5.0),
+}
 
 
 class LLMError(Exception):
-    """An error with a friendly message we can show directly in the UI."""
+    """An error with a message that is safe and useful to show to end users."""
 
 
-# Counts how many times we called Claude since the app started (shown in the sidebar).
+class LLMClient(Protocol):
+    """Anything that can answer a prompt: the real client below, a fake in tests, or a recorded-replay client."""
+
+    def __call__(
+        self,
+        model: str,
+        system: str,
+        prompt: str | list[Any],
+        max_tokens: int,
+        effort: str | None = None,
+        *,
+        purpose: str = "other",
+    ) -> str: ...
+
+
+_count_lock = threading.Lock()
 _call_count = 0
-
-# We create the client once and reuse it (like a singleton in Java).
-_client = None
+_client: Any = None  # one SDK client per process: it holds the HTTP connection pool
 
 
 def get_call_count() -> int:
-    return _call_count
+    with _count_lock:
+        return _call_count
 
 
-# App-wide usage limit: timestamps of recent calls, shared by all users (and all threads, hence the lock).
-_recent_calls = deque()
-_rate_lock = threading.Lock()
-
-
-def _check_rate_limit() -> None:
-    """Refuse the call if the whole app already made MAX_CALLS_PER_HOUR calls in the last hour."""
-    now = time.time()
-    with _rate_lock:
-        while _recent_calls and now - _recent_calls[0] > 3600:
-            _recent_calls.popleft()
-        if len(_recent_calls) >= config.MAX_CALLS_PER_HOUR:
-            wait_minutes = int((3600 - (now - _recent_calls[0])) // 60) + 1
-            raise LLMError(f"This app has reached its usage limit for now. Please try again in about {wait_minutes} minutes.")
-        _recent_calls.append(now)
+def _count_call() -> None:
+    global _call_count  # noqa: PLW0603 - process-wide counter, guarded by _count_lock
+    with _count_lock:
+        _call_count += 1
 
 
 def missing_key_message() -> str | None:
-    """Return a friendly message if the API key for the chosen provider is missing, else None."""
+    """A friendly message if the chosen provider has no credentials configured, else None."""
     if config.PROVIDER == "claude_code" and not claude_code.is_installed():
         return "Claude Code is not installed. Install it, run `claude` once and log in with your Claude subscription."
     if config.PROVIDER == "bedrock" and not os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
@@ -64,48 +78,26 @@ def missing_key_message() -> str | None:
     return None
 
 
-def _get_client():
-    """Create the Claude client for the chosen provider (only once)."""
-    global _client
+def _get_client() -> Any:
+    global _client  # noqa: PLW0603 - one SDK client (connection pool) per process
     if _client is not None:
         return _client
-
     if config.PROVIDER == "bedrock":
         if not os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
             raise LLMError("No Bedrock API key found. Add AWS_BEARER_TOKEN_BEDROCK to your .env file.")
-        # The SDK reads AWS_BEARER_TOKEN_BEDROCK from the environment by itself.
-        # max_retries: the SDK automatically retries rate limits / overloads with backoff.
-        _client = anthropic.AnthropicBedrockMantle(
-            aws_region=config.AWS_REGION, max_retries=config.MAX_RETRIES
-        )
+        # The SDK reads AWS_BEARER_TOKEN_BEDROCK itself and retries rate limits / overloads with backoff.
+        _client = anthropic.AnthropicBedrockMantle(aws_region=config.AWS_REGION, max_retries=config.MAX_RETRIES)
     else:
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise LLMError("No Anthropic API key found. Add ANTHROPIC_API_KEY to your .env file.")
-        # The SDK reads ANTHROPIC_API_KEY from the environment by itself.
         _client = anthropic.Anthropic(max_retries=config.MAX_RETRIES)
     return _client
 
 
-def call_claude(model: str, system: str, prompt: str | list, max_tokens: int, effort: str | None = None) -> str:
-    """
-    Send one message to Claude and return its text reply.
-    `prompt` is normally a string; it can also be a list of content blocks (e.g. an image + text).
-    """
-    global _call_count
-    _check_rate_limit()
-
-    # Subscription mode: hand the request to Claude Code instead of the API.
-    if config.PROVIDER == "claude_code":
-        _call_count += 1
-        try:
-            return claude_code.ask(model, system, prompt, effort)
-        except claude_code.ClaudeCodeError as e:
-            raise LLMError(str(e))
-
-    client = _get_client()
-
-    # Build the request. "effort" is only sent when the model supports it.
-    request = {
+def _call_api(
+    model: str, system: str, prompt: str | list[Any], max_tokens: int, effort: str | None
+) -> tuple[str, int, int]:
+    request: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
         "system": system,
@@ -113,47 +105,100 @@ def call_claude(model: str, system: str, prompt: str | list, max_tokens: int, ef
     }
     if effort:
         request["output_config"] = {"effort": effort}
-
-    _call_count += 1
     try:
-        response = client.messages.create(**request)
-    # Most specific errors first (like ordering catch blocks in Java).
+        response = _get_client().messages.create(**request)
+    # Subclasses before their parents (e.g. RateLimitError before APIStatusError), or the general handler wins.
     except anthropic.AuthenticationError:
-        raise LLMError("Your API key was rejected. Check the key in your .env file.")
+        raise LLMError("Your API key was rejected. Check the key in your .env file.") from None
     except anthropic.PermissionDeniedError:
-        raise LLMError(f"Your key does not have access to the model '{model}'.")
+        raise LLMError("Your key does not have access to the configured model.") from None
     except anthropic.NotFoundError:
-        raise LLMError(f"The model '{model}' was not found. Check the model names in src/config.py.")
+        raise LLMError("The configured model was not found. Check the model names in src/config.py.") from None
     except anthropic.RateLimitError:
-        raise LLMError("Too many requests right now (rate limit). Please wait a minute and try again.")
+        raise LLMError("Too many requests right now (rate limit). Please wait a minute and try again.") from None
     except (anthropic.OverloadedError, anthropic.InternalServerError):
-        raise LLMError("Claude is overloaded or having problems right now. Please try again shortly.")
-    except anthropic.BadRequestError as e:
-        if "credit balance" in str(e).lower():
-            raise LLMError("Your API credit balance is too low. Add credit in your account billing page.")
-        raise LLMError(f"The request was rejected: {e.message}")
+        raise LLMError("Claude is overloaded or having problems right now. Please try again shortly.") from None
+    except anthropic.BadRequestError as error:
+        if "credit balance" in str(error).lower():
+            raise LLMError("Your API credit balance is too low. Add credit in your account billing page.") from None
+        raise LLMError("Claude rejected the request. Please try again.") from None
     except anthropic.APITimeoutError:
-        raise LLMError("The request to Claude timed out. Please try again.")
+        raise LLMError("The request to Claude timed out. Please try again.") from None
     except anthropic.APIConnectionError:
-        raise LLMError("Could not connect to Claude. Check your internet connection.")
+        raise LLMError("Could not connect to Claude. Check your internet connection.") from None
 
-    # Claude's safety system can decline a request; tell the user instead of showing nothing.
-    if response.stop_reason == "refusal":
+    if response.stop_reason == "refusal":  # the safety system declined; say so instead of returning nothing
         raise LLMError("Claude declined to answer this request.")
+    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    return text, response.usage.input_tokens, response.usage.output_tokens
 
-    # The reply is a list of blocks (e.g. thinking + text). We only want the text blocks.
-    return "".join(block.text for block in response.content if block.type == "text").strip()
+
+def call_claude(
+    model: str,
+    system: str,
+    prompt: str | list[Any],
+    max_tokens: int,
+    effort: str | None = None,
+    *,
+    purpose: str = "other",
+) -> str:
+    """Send one message to Claude and return its text reply (prompt may be text or content blocks)."""
+    wait = state.try_acquire_call(config.MAX_CALLS_PER_HOUR)
+    if wait:
+        METRICS.inc("llm_rate_limited_total")
+        raise LLMError(
+            f"This app has reached its usage limit for now. Please try again in about {int(wait // 60) + 1} minutes."
+        )
+    _count_call()
+    started = time.perf_counter()
+    cost: float | None = None
+    try:
+        if config.PROVIDER == "claude_code":
+            try:
+                result = claude_code.ask_detailed(model, system, prompt, effort)
+            except claude_code.ClaudeCodeError as error:
+                raise LLMError(str(error)) from None
+            text = str(result["text"])
+            tokens_in, tokens_out = int(result["input_tokens"]), int(result["output_tokens"])
+            cost = result["cost_usd"]  # notional for subscriptions: what the same usage would cost via the API
+        else:
+            text, tokens_in, tokens_out = _call_api(model, system, prompt, max_tokens, effort)
+    except LLMError:
+        METRICS.inc("llm_errors_total", purpose=purpose)
+        event(
+            "llm.call_failed", purpose=purpose, model=model, duration_ms=round((time.perf_counter() - started) * 1000)
+        )
+        raise
+
+    if cost is None and model in _PRICES:
+        price_in, price_out = _PRICES[model]
+        cost = (tokens_in * price_in + tokens_out * price_out) / 1_000_000
+    seconds = time.perf_counter() - started
+    METRICS.inc("llm_calls_total", purpose=purpose, model=model)
+    METRICS.inc("llm_input_tokens_total", tokens_in, purpose=purpose)
+    METRICS.inc("llm_output_tokens_total", tokens_out, purpose=purpose)
+    METRICS.inc("llm_cost_usd_total", cost or 0.0, purpose=purpose)
+    METRICS.observe(f"llm_{purpose}", seconds)
+    event(
+        "llm.call",
+        purpose=purpose,
+        prompt_version=config.PROMPT_VERSIONS.get(purpose, "-"),
+        model=model,
+        input_tokens=tokens_in,
+        output_tokens=tokens_out,
+        cost_usd=round(cost, 6) if cost is not None else None,
+        duration_ms=round(seconds * 1000),
+    )
+    return text
 
 
-def _parse_json(text: str):
-    """Try to turn Claude's reply into Python data. Returns None if it is not valid JSON."""
-    # Remove ```json ... ``` fences if Claude added them.
+def _parse_json(text: str) -> Any:
+    """Turn a model reply into Python data, tolerating code fences and stray prose. None if it isn't JSON."""
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    # Fall back to the first {...} or [...] block found in the text.
     match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
     if match:
         try:
@@ -163,18 +208,25 @@ def _parse_json(text: str):
     return None
 
 
-def call_claude_json(model: str, system: str, prompt: str, max_tokens: int, effort: str | None = None):
-    """Like call_claude, but returns parsed JSON (dict or list). Retries once if the JSON is broken."""
+def call_claude_json(
+    model: str,
+    system: str,
+    prompt: str,
+    max_tokens: int,
+    effort: str | None = None,
+    *,
+    purpose: str = "other",
+    client: LLMClient | None = None,
+) -> Any:
+    """Like call_claude, but returns parsed JSON. Retries once with a firmer reminder if the JSON is broken."""
+    ask = client or call_claude
     system = system + "\n\nRespond with valid JSON only. No explanations, no markdown."
-    reply = call_claude(model, system, prompt, max_tokens, effort)
-    data = _parse_json(reply)
+    data = _parse_json(ask(model, system, prompt, max_tokens, effort, purpose=purpose))
     if data is not None:
         return data
-
-    # One retry with a firmer reminder.
+    METRICS.inc("llm_json_retries_total", purpose=purpose)
     retry_prompt = prompt + "\n\nIMPORTANT: Your previous reply was not valid JSON. Reply with ONLY valid JSON."
-    reply = call_claude(model, system, retry_prompt, max_tokens, effort)
-    data = _parse_json(reply)
+    data = _parse_json(ask(model, system, retry_prompt, max_tokens, effort, purpose=purpose))
     if data is None:
         raise LLMError("Claude's reply could not be read as JSON. Please try again.")
     return data

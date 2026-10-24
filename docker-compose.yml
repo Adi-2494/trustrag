@@ -1,0 +1,43 @@
+# TrustRAG as two services from one image:
+#   api - FastAPI backend: owns the documents, the shared state (SQLite) and Claude access
+#   ui  - Streamlit front end: a pure client of the API
+#
+#   docker compose up --build        ->  UI on http://localhost:7860, API on http://localhost:8000/docs
+#
+# Both ports are published on 127.0.0.1 only. Secrets come from .env and the mounted token file, never the image.
+# SQLite instead of Redis for shared state: see docs/adr/0005-sqlite-for-shared-state.md.
+
+services:
+  api:
+    build: .
+    image: trustrag:latest
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file: .env
+    environment:
+      CHROMA_DIR: /app/chroma_db
+    volumes:
+      - trustrag-data:/app/chroma_db
+      - ${HOME}/.trustrag/claude_token:/run/secrets/claude_code_oauth_token:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+    restart: unless-stopped
+
+  ui:
+    image: trustrag:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      TRUSTRAG_API_URL: http://api:8000   # the UI sends every action to the API
+    ports:
+      - "127.0.0.1:7860:7860"
+    restart: unless-stopped
+
+volumes:
+  trustrag-data:

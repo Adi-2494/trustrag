@@ -6,10 +6,14 @@ Then we compute a trust score from the results.
 
 import html
 import re
+from collections.abc import Sequence
+from typing import cast
 
 from src import config
 from src.generator import format_context, is_refusal
-from src.llm import call_claude_json
+from src.llm import LLMClient, call_claude_json
+from src.models import Chunk, Claim, ClaimStatus, Verification
+from src.observability import stage
 from src.safety import escape_for_prompt
 
 STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "NOT_SUPPORTED")
@@ -39,7 +43,7 @@ def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def compute_trust_score(claims: list[dict]) -> float | None:
+def compute_trust_score(claims: list[Claim]) -> float | None:
     """Trust score = (supported + 0.5 * partially supported) / total claims, as a percentage."""
     if not claims:
         return None
@@ -48,7 +52,7 @@ def compute_trust_score(claims: list[dict]) -> float | None:
     return round((supported + 0.5 * partial) / len(claims) * 100, 1)
 
 
-def verify_answer(answer: str, chunks: list[dict]) -> dict:
+def verify_answer(answer: str, chunks: Sequence[Chunk], client: LLMClient | None = None) -> Verification:
     """
     Fact-check an answer. Returns:
     {"refused": bool, "claims": [...], "trust_score": float | None}
@@ -58,17 +62,26 @@ def verify_answer(answer: str, chunks: list[dict]) -> dict:
         return {"refused": True, "claims": [], "trust_score": None}
 
     prompt = f"SOURCES:\n{format_context(chunks)}\n\nANSWER TO CHECK:\n<answer>\n{escape_for_prompt(answer)}\n</answer>"
+    with stage("verify", chunks=len(chunks)) as result:
+        verification = _verify(prompt, chunks, client)
+        result.update(claims=len(verification["claims"]), trust_score=verification["trust_score"])
+    return verification
+
+
+def _verify(prompt: str, chunks: Sequence[Chunk], client: LLMClient | None) -> Verification:
     data = call_claude_json(
         model=config.CHECKER_MODEL,
         system=VERIFY_SYSTEM_PROMPT,
         prompt=prompt,
         max_tokens=config.VERIFY_MAX_TOKENS,
         effort=config.CHECKER_EFFORT,
+        purpose="verify",
+        client=client,
     )
 
     # Clean up the model's output so the UI can rely on it.
     all_source_text = _normalise(" ".join(c["text"] for c in chunks))
-    claims = []
+    claims: list[Claim] = []
     raw_claims = data.get("claims", []) if isinstance(data, dict) else []
     for item in raw_claims:
         if not isinstance(item, dict) or not item.get("claim"):
@@ -84,14 +97,16 @@ def verify_answer(answer: str, chunks: list[dict]) -> dict:
         if status == "SUPPORTED" and not quote_found:
             status = "PARTIALLY_SUPPORTED"
             reason = "Evidence quote not found word for word in the sources. " + reason
-        claims.append({
-            "claim": str(item["claim"]),
-            "status": status,
-            "quote": quote,
-            "file_name": item.get("file_name"),
-            "page": item.get("page"),
-            "reason": reason,
-            "quote_found": quote_found,
-        })
+        claims.append(
+            {
+                "claim": str(item["claim"]),
+                "status": cast(ClaimStatus, status),
+                "quote": quote,
+                "file_name": item.get("file_name"),
+                "page": item.get("page"),
+                "reason": reason,
+                "quote_found": quote_found,
+            }
+        )
 
     return {"refused": False, "claims": claims, "trust_score": compute_trust_score(claims)}

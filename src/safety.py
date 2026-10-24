@@ -38,15 +38,47 @@ def escape_for_prompt(text: str, attribute: bool = False) -> str:
 # ---------------------------------------------------------------------------
 # Text checked by the rule-based injection scanner
 # ---------------------------------------------------------------------------
-_ZERO_WIDTH = re.compile("[​-‏‪-‮⁠-⁤﻿]")
-_SOFT_HYPHEN = "­"
+_ZERO_WIDTH = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
+_SOFT_HYPHEN = "\u00ad"
 # Common look-alike letters (Greek/Cyrillic) that attackers swap in for Latin ones.
-_LOOKALIKES = str.maketrans({
-    "ο": "o", "о": "o", "Ο": "O", "О": "O", "е": "e", "Е": "E", "а": "a", "А": "A",
-    "і": "i", "І": "I", "ı": "i", "ѕ": "s", "Ѕ": "S", "р": "p", "Р": "P", "с": "c", "С": "C",
-    "у": "y", "х": "x", "Х": "X", "ԁ": "d", "ɡ": "g", "Т": "T", "Н": "H", "М": "M", "К": "K", "В": "B",
-    "ν": "v", "α": "a", "ε": "e", "ι": "i", "κ": "k", "τ": "t", "υ": "u",
-})
+_LOOKALIKES = str.maketrans(
+    {
+        "ο": "o",
+        "о": "o",
+        "Ο": "O",
+        "О": "O",
+        "е": "e",
+        "Е": "E",
+        "а": "a",
+        "А": "A",
+        "і": "i",
+        "І": "I",
+        "ı": "i",
+        "ѕ": "s",
+        "Ѕ": "S",
+        "р": "p",
+        "Р": "P",
+        "с": "c",
+        "С": "C",
+        "у": "y",
+        "х": "x",
+        "Х": "X",
+        "ԁ": "d",
+        "ɡ": "g",
+        "Т": "T",
+        "Н": "H",
+        "М": "M",
+        "К": "K",
+        "В": "B",
+        "ν": "v",
+        "α": "a",
+        "ε": "e",
+        "ι": "i",
+        "κ": "k",
+        "τ": "t",
+        "υ": "u",
+    }
+)
 _SPACED_LETTERS = re.compile(r"\b(?:[A-Za-z][\-.*_ ]){3,}[A-Za-z]\b")
 
 
@@ -61,7 +93,7 @@ def normalise_for_rules(text: str) -> str:
     text = _ZERO_WIDTH.sub("", text).replace(_SOFT_HYPHEN, "")
     text = text.translate(_LOOKALIKES)
     text = _SPACED_LETTERS.sub(lambda m: re.sub(r"[\-.*_ ]", "", m.group(0)), text)  # "I-g-n-o-r-e" -> "Ignore"
-    text = re.sub(r"\b(you|we|they)['’]re\b", r"\1 are", text, flags=re.I)          # "you're" -> "you are"
+    text = re.sub(r"\b(you|we|they)['’]re\b", r"\1 are", text, flags=re.I)  # "you're" -> "you are"
     return text
 
 

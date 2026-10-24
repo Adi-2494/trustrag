@@ -13,6 +13,7 @@ SAMPLE_PDF = "sample_docs/company_handbook.pdf"
 
 # ---------- loader ----------
 
+
 def test_loader_reads_every_page_with_metadata():
     pages = load_pdf(SAMPLE_PDF, "company_handbook.pdf")
     assert [p["page"] for p in pages] == [1, 2, 3]
@@ -29,6 +30,7 @@ def test_loader_rejects_non_pdf(tmp_path):
 
 
 # ---------- chunker ----------
+
 
 def test_chunks_respect_size_and_keep_metadata():
     long_text = " ".join(f"Sentence number {i} is here." for i in range(300))
@@ -48,6 +50,7 @@ def test_chunk_ids_are_unique_and_stable():
 
 # ---------- generator ----------
 
+
 def test_refusal_detection():
     assert is_refusal(config.REFUSAL_TEXT)
     assert is_refusal("The documents do not contain this information")
@@ -60,12 +63,16 @@ def test_no_chunks_returns_refusal_without_api_call():
 
 # ---------- JSON parsing ----------
 
-@pytest.mark.parametrize("reply, expected", [
-    ('{"a": 1}', {"a": 1}),
-    ('```json\n{"a": 1}\n```', {"a": 1}),
-    ('Sure! Here it is: {"a": 1} Hope that helps.', {"a": 1}),
-    ("[1, 2, 3]", [1, 2, 3]),
-    ("not json at all", None),
-])
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ('{"a": 1}', {"a": 1}),
+        ('```json\n{"a": 1}\n```', {"a": 1}),
+        ('Sure! Here it is: {"a": 1} Hope that helps.', {"a": 1}),
+        ("[1, 2, 3]", [1, 2, 3]),
+        ("not json at all", None),
+    ],
+)
 def test_parse_json_handles_messy_replies(reply, expected):
     assert _parse_json(reply) == expected

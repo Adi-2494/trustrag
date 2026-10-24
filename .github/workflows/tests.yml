@@ -19,13 +19,33 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: pip
 
       - name: Install dependencies (exact versions, hash-checked)
-        run: pip install --require-hashes --no-deps -r requirements.lock
+        run: pip install --require-hashes --no-deps -r requirements-dev.lock
 
-      - name: Run tests (no API key needed)
-        run: pytest -v
+      - name: Lint and format (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Type check (mypy --strict)
+        run: mypy
+
+      - name: No invisible / bidirectional characters
+        run: python scripts/check_invisible_chars.py
+
+      - name: Download the embedding model (enables the replay integration test)
+        run: python -c "from chromadb.utils.embedding_functions import DefaultEmbeddingFunction as E; E()(['warm up'])"
+
+      - name: Tests with coverage (no API key needed; fails under 85%)
+        run: pytest -v --cov --cov-report=term --cov-report=markdown:coverage.md
+
+      - name: Coverage summary
+        if: always()
+        run: test -f coverage.md && cat coverage.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Offline evaluation (retrieval, ablations, rule-based injection benchmark)
+        run: python -m eval.run_eval --suite free
 
   docker:
     # Proves the Docker image builds for both chip types: amd64 (Windows/Intel/cloud) and arm64 (Apple Silicon/ARM).

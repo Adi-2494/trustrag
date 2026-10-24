@@ -1,0 +1,71 @@
+{"id": "q000", "question": "Where does Brightleaf Robotics have offices?", "answerable": true, "file": "hr_handbook.pdf", "page": 1, "evidence": "offices in Pune, Berlin and Toronto", "answer_keys": [["pune"], ["berlin"], ["toronto"]]}
+{"id": "q001", "question": "What are the core working hours?", "answerable": true, "file": "hr_handbook.pdf", "page": 1, "evidence": "Core working hours are 10:00 to 16:00", "answer_keys": [["10:00", "10 am", "10am"], ["16:00", "4 pm", "4pm"]]}
+{"id": "q002", "question": "How many hours per week must employees work?", "answerable": true, "file": "hr_handbook.pdf", "page": 1, "evidence": "provided they work 40 hours per week", "answer_keys": [["40"]]}
+{"id": "q003", "question": "By when must hours be recorded in TimeTrack?", "answerable": true, "file": "hr_handbook.pdf", "page": 1, "evidence": "by 18:00 every Friday", "answer_keys": [["18:00", "6 pm", "6pm"], ["friday"]]}
+{"id": "q004", "question": "How long is the probation period for new employees?", "answerable": true, "file": "hr_handbook.pdf", "page": 2, "evidence": "probation period of 6 months", "answer_keys": [["6 months", "six months"]]}
+{"id": "q005", "question": "What is the notice period during probation?", "answerable": true, "file": "hr_handbook.pdf", "page": 2, "evidence": "with 2 weeks' notice", "answer_keys": [["2 weeks", "two weeks"]]}
+{"id": "q006", "question": "What is the notice period for managers after probation?", "answerable": true, "file": "hr_handbook.pdf", "page": 2, "evidence": "3 months for managers", "answer_keys": [["3 months", "three months"]]}
+{"id": "q007", "question": "How many days of paid annual leave do full-time employees get?", "answerable": true, "file": "hr_handbook.pdf", "page": 3, "evidence": "25 days of paid annual leave", "answer_keys": [["25"]]}
+{"id": "q008", "question": "How many unused annual leave days can be carried over?", "answerable": true, "file": "hr_handbook.pdf", "page": 3, "evidence": "Up to 5 unused annual leave days", "answer_keys": [["5", "five"]]}
+{"id": "q009", "question": "When do carried-over leave days expire?", "answerable": true, "file": "hr_handbook.pdf", "page": 3, "evidence": "expire on 31 March", "answer_keys": [["31 march", "march 31"]]}
+{"id": "q010", "question": "How many paid sick days do employees get per year?", "answerable": true, "file": "hr_handbook.pdf", "page": 3, "evidence": "12 days of paid sick leave", "answer_keys": [["12"]]}
+{"id": "q011", "question": "When is a doctor's note needed for sick leave?", "answerable": true, "file": "hr_handbook.pdf", "page": 3, "evidence": "longer than 3 consecutive working days", "answer_keys": [["3", "three"]]}
+{"id": "q012", "question": "How much parental leave do birthing parents get?", "answerable": true, "file": "hr_handbook.pdf", "page": 4, "evidence": "26 weeks of fully paid parental leave", "answer_keys": [["26"]]}
+{"id": "q013", "question": "How much parental leave do non-birthing parents get?", "answerable": true, "file": "hr_handbook.pdf", "page": 4, "evidence": "6 weeks of fully paid parental leave", "answer_keys": [["6 weeks", "six weeks"]]}
+{"id": "q014", "question": "How many days of compassionate leave can employees take?", "answerable": true, "file": "hr_handbook.pdf", "page": 4, "evidence": "up to 5 days of paid compassionate leave", "answer_keys": [["5", "five"]]}
+{"id": "q015", "question": "Up to what percentage does the company match pension contributions?", "answerable": true, "file": "hr_handbook.pdf", "page": 5, "evidence": "up to 6% of base salary", "answer_keys": [["6%", "6 %", "six percent"]]}
+{"id": "q016", "question": "What is the annual learning budget?", "answerable": true, "file": "hr_handbook.pdf", "page": 5, "evidence": "learning budget of 1,500 EUR", "answer_keys": [["1,500", "1500"]]}
+{"id": "q017", "question": "How much is the monthly wellness allowance?", "answerable": true, "file": "hr_handbook.pdf", "page": 5, "evidence": "wellness allowance is 50 EUR per month", "answer_keys": [["50"]]}
+{"id": "q018", "question": "How many days per week can employees work remotely?", "answerable": true, "file": "hr_handbook.pdf", "page": 6, "evidence": "up to 3 days per week", "answer_keys": [["3", "three"]]}
+{"id": "q019", "question": "How much is the home office allowance?", "answerable": true, "file": "hr_handbook.pdf", "page": 6, "evidence": "home office allowance of 400 EUR", "answer_keys": [["400"]]}
+{"id": "q020", "question": "Above what value must supplier gifts be declared?", "answerable": true, "file": "hr_handbook.pdf", "page": 6, "evidence": "worth more than 75 EUR", "answer_keys": [["75"]]}
+{"id": "q021", "question": "What is the minimum password length?", "answerable": true, "file": "it_security_policy.pdf", "page": 1, "evidence": "at least 14 characters long", "answer_keys": [["14"]]}
+{"id": "q022", "question": "Do passwords need to be rotated regularly?", "answerable": true, "file": "it_security_policy.pdf", "page": 1, "evidence": "routine rotation is not required", "answer_keys": [["not required", "no", "only"]]}
+{"id": "q023", "question": "After how many failed sign-in attempts is an account locked?", "answerable": true, "file": "it_security_policy.pdf", "page": 1, "evidence": "locked after 10 failed sign-in attempts", "answer_keys": [["10", "ten"]]}
+{"id": "q024", "question": "Which systems require multi-factor authentication?", "answerable": true, "file": "it_security_policy.pdf", "page": 2, "evidence": "mandatory for email, VPN and the HR portal", "answer_keys": [["email"], ["vpn"], ["hr portal"]]}
+{"id": "q025", "question": "After how many minutes of inactivity must laptops lock the screen?", "answerable": true, "file": "it_security_policy.pdf", "page": 2, "evidence": "after 5 minutes of inactivity", "answer_keys": [["5", "five"]]}
+{"id": "q026", "question": "How can personal phones access company email?", "answerable": true, "file": "it_security_policy.pdf", "page": 2, "evidence": "only through the approved Intune app", "answer_keys": [["intune"]]}
+{"id": "q027", "question": "How quickly must suspected security incidents be reported?", "answerable": true, "file": "it_security_policy.pdf", "page": 3, "evidence": "within 1 hour of discovery", "answer_keys": [["1 hour", "one hour"]]}
+{"id": "q028", "question": "Which extension should I call to report a lost laptop?", "answerable": true, "file": "it_security_policy.pdf", "page": 3, "evidence": "extension 4400", "answer_keys": [["4400"]]}
+{"id": "q029", "question": "How should phishing emails be reported?", "answerable": true, "file": "it_security_policy.pdf", "page": 3, "evidence": "Report Phish button", "answer_keys": [["report phish"]]}
+{"id": "q030", "question": "What are the data classification levels?", "answerable": true, "file": "it_security_policy.pdf", "page": 4, "evidence": "Public, Internal, Confidential or Restricted", "answer_keys": [["public"], ["internal"], ["confidential"], ["restricted"]]}
+{"id": "q031", "question": "Where may restricted data such as salaries be stored?", "answerable": true, "file": "it_security_policy.pdf", "page": 4, "evidence": "only be stored on the encrypted HR drive", "answer_keys": [["hr drive"]]}
+{"id": "q032", "question": "Who must approve sharing confidential documents outside the company?", "answerable": true, "file": "it_security_policy.pdf", "page": 4, "evidence": "approval from the data owner", "answer_keys": [["data owner"]]}
+{"id": "q033", "question": "Which AI assistant may be used for company data?", "answerable": true, "file": "it_security_policy.pdf", "page": 5, "evidence": "approved internal AI assistant", "answer_keys": [["internal"]]}
+{"id": "q034", "question": "Where must developers keep system prompts?", "answerable": true, "file": "it_security_policy.pdf", "page": 5, "evidence": "keep system prompts in version control", "answer_keys": [["version control"]]}
+{"id": "q035", "question": "How far in advance must business travel be booked?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 1, "evidence": "at least 10 days before departure", "answer_keys": [["10", "ten"]]}
+{"id": "q036", "question": "Who must approve trips abroad?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 1, "evidence": "approval from the department head", "answer_keys": [["department head"]]}
+{"id": "q037", "question": "Which class must be booked for flights under 5 hours?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 2, "evidence": "Economy class is required for flights under 5 hours", "answer_keys": [["economy"]]}
+{"id": "q038", "question": "When may premium economy be booked?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 2, "evidence": "flights of 5 hours or more", "answer_keys": [["5 hours", "five hours"]]}
+{"id": "q039", "question": "When is train travel preferred over flying?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 2, "evidence": "journeys under 4 hours", "answer_keys": [["4 hours", "four hours"]]}
+{"id": "q040", "question": "What is the hotel limit per night in capital cities?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 3, "evidence": "180 EUR per night in capital cities", "answer_keys": [["180"]]}
+{"id": "q041", "question": "What is the daily meal allowance outside Europe?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 3, "evidence": "60 EUR outside Europe", "answer_keys": [["60"]]}
+{"id": "q042", "question": "Is alcohol reimbursed?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 3, "evidence": "Alcohol is not reimbursed", "answer_keys": [["not", "no"]]}
+{"id": "q043", "question": "What is the mileage rate for using a private car?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 4, "evidence": "0.30 EUR per kilometre", "answer_keys": [["0.30", "0,30", "30 cent"]]}
+{"id": "q044", "question": "Within how many days must expense claims be submitted?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 4, "evidence": "within 60 days of the expense", "answer_keys": [["60"]]}
+{"id": "q045", "question": "Who must approve expense claims above 2,000 EUR?", "answerable": true, "file": "travel_expense_policy.pdf", "page": 4, "evidence": "approval from the finance director", "answer_keys": [["finance director"]]}
+{"id": "q046", "question": "Do contractors receive paid annual leave?", "answerable": true, "file": "contractor_policy.pdf", "page": 1, "evidence": "Contractors do not receive paid annual leave", "answer_keys": [["not", "no "]]}
+{"id": "q047", "question": "How far in advance must contractors agree unpaid time off?", "answerable": true, "file": "contractor_policy.pdf", "page": 1, "evidence": "engagement manager 2 weeks in advance", "answer_keys": [["2 weeks", "two weeks"]]}
+{"id": "q048", "question": "By when must contractors send their monthly invoice?", "answerable": true, "file": "contractor_policy.pdf", "page": 2, "evidence": "by the 5th working day of the following month", "answer_keys": [["5th", "fifth"]]}
+{"id": "q049", "question": "Within how many days are contractor invoices paid?", "answerable": true, "file": "contractor_policy.pdf", "page": 2, "evidence": "paid within 30 days of receipt", "answer_keys": [["30"]]}
+{"id": "q050", "question": "What notice is needed to end a contractor engagement?", "answerable": true, "file": "contractor_policy.pdf", "page": 3, "evidence": "30 days' written notice", "answer_keys": [["30"]]}
+{"id": "q051", "question": "How many days of paid annual leave do interns get?", "answerable": true, "file": "intern_policy.pdf", "page": 2, "evidence": "Interns receive 10 days of paid annual leave", "answer_keys": [["10", "ten"]]}
+{"id": "q052", "question": "How many days per week can interns work remotely?", "answerable": true, "file": "intern_policy.pdf", "page": 2, "evidence": "Interns may work remotely 1 day per week", "answer_keys": [["1 day", "one day"]]}
+{"id": "q053", "question": "How long is the probation period for interns?", "answerable": true, "file": "intern_policy.pdf", "page": 1, "evidence": "probation period of 1 month", "answer_keys": [["1 month", "one month"]]}
+{"id": "q054", "question": "What is the learning budget for interns?", "answerable": true, "file": "intern_policy.pdf", "page": 3, "evidence": "learning budget of 300 EUR", "answer_keys": [["300"]]}
+{"id": "q055", "question": "How many hours per week do interns work?", "answerable": true, "file": "intern_policy.pdf", "page": 1, "evidence": "Interns work 30 hours per week", "answer_keys": [["30"]]}
+{"id": "u000", "question": "What is the name of the CEO?", "answerable": false}
+{"id": "u001", "question": "What was the company's revenue last year?", "answerable": false}
+{"id": "u002", "question": "How many employees work in the Toronto office?", "answerable": false}
+{"id": "u003", "question": "Is dental insurance included in the benefits?", "answerable": false}
+{"id": "u004", "question": "What is the office dress code?", "answerable": false}
+{"id": "u005", "question": "What percentage is the annual bonus?", "answerable": false}
+{"id": "u006", "question": "How much is the monthly internet allowance?", "answerable": false}
+{"id": "u007", "question": "Which VPN software does the company use?", "answerable": false}
+{"id": "u008", "question": "What is the daily allowance for interns?", "answerable": false}
+{"id": "u009", "question": "Are pets allowed in the office?", "answerable": false}
+{"id": "u010", "question": "When is the company holiday party?", "answerable": false}
+{"id": "u011", "question": "What is the maximum budget for a new laptop?", "answerable": false}
+{"id": "u012", "question": "Which airline should employees prefer?", "answerable": false}
+{"id": "u013", "question": "What is the Wi-Fi password?", "answerable": false}
+{"id": "u014", "question": "In which year was the company founded?", "answerable": false}

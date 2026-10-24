@@ -15,3 +15,7 @@ __pycache__/
 docs/
 tests/
 .DS_Store
+eval/
+scripts/
+requirements-dev.lock
+.pre-commit-config.yaml

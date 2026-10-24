@@ -182,7 +182,9 @@ altair==6.3.0 \
 annotated-doc==0.0.5 \
     --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101 \
     --hash=sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb
-    # via typer
+    # via
+    #   fastapi
+    #   typer
 annotated-types==0.8.0 \
     --hash=sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7 \
     --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
@@ -190,7 +192,7 @@ annotated-types==0.8.0 \
 anthropic==2.2.0 \
     --hash=sha256:6b28d4b7299587a3a0edbcbd7431b0a06d749a2f4196efaf044fe6dc474ec144 \
     --hash=sha256:ba8388e843521b3eb3cfadf99ec415f13e124a8d1587236969b0a3d84e427d36
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 anyio==4.15.1 \
     --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101 \
     --hash=sha256:9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94
@@ -459,9 +461,7 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fcff63213e8e6e47770541a4607175404f47cbb3ebea7b6058cc82d524a0e424 \
     --hash=sha256:fd1fbe0f116b6e55da77aca2c6ddcddcfac2186cbf78bdebf40fc156efca389d \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
-    # via
-    #   reportlab
-    #   requests
+    # via requests
 chromadb==1.5.9 \
     --hash=sha256:4fd0b560e56761b7f3cb4d5c6205fd5f20814484b4a3e4e9af9038c2b428fc6c \
     --hash=sha256:5c20e62a455c28bacac927f26116a73fd8e1799e0d908be8e8a4f02197a54731 \
@@ -469,7 +469,7 @@ chromadb==1.5.9 \
     --hash=sha256:814b9c95617377f6501e5757d63dfddb554a283a7739c87b9fa573850174e6f3 \
     --hash=sha256:9192d111bd662241625867962333d99369a00769a50f8b2f58cb388731274d7e \
     --hash=sha256:cc09b3df76e5a5cb386aed2715a2eea152e3949f9e1ba93c7119505377749929
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 click==8.5.0 \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
     --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
@@ -482,7 +482,6 @@ colorama==0.4.6 ; os_name == 'nt' or sys_platform == 'win32' \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
     # via
     #   build
-    #   pytest
     #   tqdm
     #   typer
 distro==1.9.0 \
@@ -497,6 +496,10 @@ durationpy==0.11 \
     --hash=sha256:181898e1ae282e288f0a2291829656bf1b6b3aadf30a97993b85db4943642905 \
     --hash=sha256:a739fe2b8972c250ff72f8e2c488d18cf25f7b852f49ee76048775d5171df30c
     # via kubernetes
+fastapi==0.162.0 \
+    --hash=sha256:3785963de305dd09912426cb81f2d230fce98ab3521cdfe97265c8d14983128c \
+    --hash=sha256:6a22c1e2e6e32e0633ee7e170f00009a29b8228b16feb219ee42f32fd8d88a8f
+    # via trustrag (pyproject.toml)
 filelock==4.2.4 \
     --hash=sha256:301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e \
     --hash=sha256:c6d8663535e1650ee430507b4ffbac7b464dd64b7647ea0112a9f406499d163d
@@ -869,6 +872,7 @@ httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via
+    #   trustrag (pyproject.toml)
     #   chromadb
     #   langchain-core
 httpx2==2.16.0 \
@@ -899,10 +903,6 @@ importlib-resources==7.1.0 \
     --hash=sha256:0722d4c6212489c530f2a145a34c0a7a3b4721bc96a15fada5930e2a0b760708 \
     --hash=sha256:1bd7b48b4088eddb2cd16382150bb515af0bd2c70128194392725f82ad2c96a1
     # via chromadb
-iniconfig==2.3.1 \
-    --hash=sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960 \
-    --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
-    # via pytest
 itsdangerous==2.2.0 \
     --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef \
     --hash=sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173
@@ -1067,7 +1067,7 @@ langchain-protocol==0.0.20 \
 langchain-text-splitters==1.1.3 \
     --hash=sha256:50edeb318b3be6a6308dddd7d616ab82823a9ccbea59a9c14c58a7b91df60295 \
     --hash=sha256:929b6c76f99d611a5b1d8f5591ef302909b86a436ceb3217034d24e4757868d8
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 langsmith==0.14.12 \
     --hash=sha256:9dafba7f615afa77204dc8afbb9c803e4ba1b55e96249f12c8f9aafb23fae6d0 \
     --hash=sha256:b4d6a24ed74333095da476803ad9d22ee35f9dae1052cebf1e366d3889a9b675
@@ -1632,6 +1632,7 @@ numpy==2.4.6 ; python_full_version < '3.12' \
     #   onnxruntime
     #   pandas
     #   pydeck
+    #   rank-bm25
     #   streamlit
 numpy==2.5.4 ; python_full_version >= '3.12' \
     --hash=sha256:067374eb538c34c745436365cf7b0112595c1d326f21ce4ff340f61230239fbb \
@@ -1705,6 +1706,7 @@ numpy==2.5.4 ; python_full_version >= '3.12' \
     #   onnxruntime
     #   pandas
     #   pydeck
+    #   rank-bm25
     #   streamlit
 oauthlib==4.0.0 \
     --hash=sha256:624c28c13a0a59cabf9747dfa52af63be3e512a7f2714df16e91b5b3a145e6cd \
@@ -1742,6 +1744,7 @@ opentelemetry-api==1.45.1 \
     # via
     #   anthropic
     #   chromadb
+    #   fastapi
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
@@ -1851,7 +1854,6 @@ packaging==26.3 \
     #   langchain-core
     #   langsmith
     #   onnxruntime
-    #   pytest
     #   streamlit
 pandas==3.1.0 \
     --hash=sha256:04ca88727dfa86837030c493d7512bb1c008aa4f5f14149c5f8d3ff446791340 \
@@ -1997,13 +1999,7 @@ pillow==13.0.0 \
     --hash=sha256:fc481f742ccda20e9ed760b8f978dff50f2a4e9bc253ac167fb0a05b0783ef52 \
     --hash=sha256:ff3fe9eb621fbb9db4c4be33ab946f6bac5f98ab50ca8d3260503653656c961b \
     --hash=sha256:ffea6b2986a797c84b6d1d27d4f43e0b83c73fc16281a930891cd237cf0d08fe
-    # via
-    #   reportlab
-    #   streamlit
-pluggy==1.7.0 \
-    --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec \
-    --hash=sha256:d1eaa46ebb595891b860ab086b4d09c8588af65ebd4361b8e8f4bb8920b90ba8
-    # via pytest
+    # via streamlit
 propcache==0.5.4 \
     --hash=sha256:004e685b315646c410771836e72a44f143bbe624f29653a42687815069a303d5 \
     --hash=sha256:02c0a34f16889cf800f10f0247a564d8ce6eeab6ffcd7c87198f769067eb8432 \
@@ -2433,6 +2429,7 @@ pydantic==2.14.1 \
     # via
     #   anthropic
     #   chromadb
+    #   fastapi
     #   kubernetes
     #   langchain-core
     #   langsmith
@@ -2579,7 +2576,9 @@ pydantic-core==2.50.1 \
 pydantic-settings==2.16.1 \
     --hash=sha256:30f5313340da4e8f1b440d1910b92a5bc3ccbb6b4ba70ec2b8395bc921f418f5 \
     --hash=sha256:aff602a1886338c2df3d1e958e2193a8dc33cec75b91f202e83fd98484b4b0da
-    # via chromadb
+    # via
+    #   trustrag (pyproject.toml)
+    #   chromadb
 pydeck==0.9.3 \
     --hash=sha256:695775cbfe51f5fdffbd9735ba469987fdc5efc96bc40a0ee4808170509c78b2 \
     --hash=sha256:d8a47c11c81fb12d51b1feb42427ff4f0e13cb599e48931021b2cba98b6849a6
@@ -2587,13 +2586,11 @@ pydeck==0.9.3 \
 pygments==2.21.0 \
     --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9 \
     --hash=sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c
-    # via
-    #   pytest
-    #   rich
+    # via rich
 pypdf==6.21.2 \
     --hash=sha256:0a3e1c5c886a1be03646c16a04827cc166c2a0575c971b26a4bf89686551c2d4 \
     --hash=sha256:1d44d1a3a200f25062adff0085b02040e4646431ac2ccac22e42679e91466084
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 pypdfium2==5.14.0 \
     --hash=sha256:09b99c8f0cb427eb17fec13c0862ed598bba34b4843df153f70fff806a2820bc \
     --hash=sha256:11f281613fa22313d9c7ab89947665e84eccf8ebe40e1198a84a88352305648d \
@@ -2618,7 +2615,7 @@ pypdfium2==5.14.0 \
     --hash=sha256:eb8aeca157808f323e39ea298cc6d6c8e080c192ea2efb1ca81daa0f0ff4d095 \
     --hash=sha256:f1b696e6901e16f114a2ec6332e5e3f8f5033a901614ead28499ab18ca6024f5 \
     --hash=sha256:f6f13bbcc5f4adabc2676e52f662c6cb375de86b314790b0ae08f3ab62eb116a
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 pypika==0.51.1 \
     --hash=sha256:77985b4d7ce71b9905255bf12468cf598349e98837c037541cfc240e528aec46 \
     --hash=sha256:c30c7c1048fbf056fd3920c5a2b88b0c29dd190a9b2bee971fd17e4abe4d0ebe
@@ -2627,10 +2624,6 @@ pyproject-hooks==1.3.3 \
     --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b \
     --hash=sha256:defda19b854fa0d3bd4f76ea4ddcba8abd7dcfcdd585a6690ade050744fc5f43
     # via build
-pytest==9.1.1 \
-    --hash=sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313 \
-    --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
-    # via -r requirements.txt
 python-dateutil==3.0.0 \
     --hash=sha256:3c79630202e4152c6add678446984236efe4f57e84d8e892aab0637bab82e9fd \
     --hash=sha256:7ebcb3c29a92f3ceafe79a7a48a5c45677e9e004bbeec5742ac0bbb00560b7a2
@@ -2641,13 +2634,15 @@ python-dotenv==1.2.4 \
     --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc \
     --hash=sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0
     # via
-    #   -r requirements.txt
+    #   trustrag (pyproject.toml)
     #   pydantic-settings
     #   uvicorn
 python-multipart==0.0.32 \
     --hash=sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e \
     --hash=sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23
-    # via streamlit
+    # via
+    #   trustrag (pyproject.toml)
+    #   streamlit
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -2728,16 +2723,16 @@ pyyaml==6.0.3 \
     #   kubernetes
     #   langchain-core
     #   uvicorn
+rank-bm25==0.2.2 \
+    --hash=sha256:096ccef76f8188563419aaf384a02f0ea459503fdf77901378d4fd9d87e5e51d \
+    --hash=sha256:7bd4a95571adadfc271746fa146a4bcfd89c0cf731e49c3d1ad863290adbe8ae
+    # via trustrag (pyproject.toml)
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
     --hash=sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8
     # via
     #   jsonschema
     #   jsonschema-specifications
-reportlab==5.1.0 \
-    --hash=sha256:59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df \
-    --hash=sha256:6878200464527e87672d19e9f7cfc6bb890e3a6931e74ac6a1a8d1754aa55671
-    # via -r requirements.txt
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
@@ -2910,11 +2905,13 @@ sniffio==1.3.1 \
 starlette==1.9.0 \
     --hash=sha256:3d931de246ed870e35ce605974440816ef895e592f255d1396cfdf191d4c4318 \
     --hash=sha256:fd3f159936e882d06c1108f84688f7cda2cf85fc6a592a50edbd175e882c2ddc
-    # via streamlit
+    # via
+    #   fastapi
+    #   streamlit
 streamlit==1.66.1 \
     --hash=sha256:29607190a589fe1fa9bd7e154635d335d47dc09b4010c6cc273daa6e4430ee31 \
     --hash=sha256:7710a8b67469da7af7bf3503c9b68afca5676f832f62f9bda1221e0ce11941d1
-    # via -r requirements.txt
+    # via trustrag (pyproject.toml)
 tenacity==9.2.1 \
     --hash=sha256:9e56f17539296baab7beabb08b92f6ee3d7be92d8be72d763360677c2ad6580e \
     --hash=sha256:a606b5c808d0cded4a359d5b9932d867ff2a6a6b64d37350260fd01bbdf83839
@@ -2973,6 +2970,7 @@ typing-extensions==4.16.0 \
     #   anthropic
     #   anyio
     #   chromadb
+    #   fastapi
     #   grpcio
     #   httpx2
     #   huggingface-hub
@@ -2995,6 +2993,7 @@ typing-inspection==0.4.4 \
     --hash=sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47 \
     --hash=sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147
     # via
+    #   fastapi
     #   pydantic
     #   pydantic-settings
 tzdata==2026.5 \
@@ -3139,6 +3138,7 @@ uvicorn==0.54.0 \
     --hash=sha256:505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf \
     --hash=sha256:a2e33cbfaa0306f8e6b0c13e0cb89d7d7a2da3e62b90c66e18c33d9807b28620
     # via
+    #   trustrag (pyproject.toml)
     #   chromadb
     #   streamlit
 uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' \

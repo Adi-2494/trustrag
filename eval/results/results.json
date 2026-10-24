@@ -1,0 +1,1246 @@
+{
+  "run_at": "2026-10-24T21:33:57",
+  "commit": "bf3c288",
+  "suite": "all",
+  "answer_model": "claude-sonnet-5-5",
+  "checker_model": "claude-haiku-5-5",
+  "prompt_versions": {
+    "answer": "answer-v3",
+    "verify": "verify-v3",
+    "scan": "scan-v3",
+    "ocr": "ocr-v1",
+    "rerank": "rerank-v1"
+  },
+  "settings": {
+    "chunk_size": 800,
+    "chunk_strategy": "fixed",
+    "retrieval_mode": "hybrid",
+    "top_k": 4,
+    "rerank": false
+  },
+  "retrieval": {
+    "questions": 56,
+    "recall_at_k": 1.0,
+    "mrr": 0.973,
+    "top_k": 4,
+    "mode": "hybrid"
+  },
+  "ablation": [
+    {
+      "chunk_size": 500,
+      "overlap": 94,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 0.946,
+      "mrr": 0.893,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 500,
+      "overlap": 94,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 0.946,
+      "mrr": 0.908,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "chunk_size": 500,
+      "overlap": 94,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 0.929,
+      "mrr": 0.893,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 500,
+      "overlap": 94,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 0.929,
+      "mrr": 0.902,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "chunk_size": 800,
+      "overlap": 150,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.952,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 800,
+      "overlap": 150,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "chunk_size": 800,
+      "overlap": 150,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.935,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 800,
+      "overlap": 150,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.946,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "chunk_size": 1200,
+      "overlap": 225,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 1200,
+      "overlap": 225,
+      "strategy": "fixed",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "chunk_size": 1200,
+      "overlap": 225,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "chunk_size": 1200,
+      "overlap": 225,
+      "strategy": "section",
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "hybrid"
+    }
+  ],
+  "rerank": [
+    {
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.952,
+      "top_k": 4,
+      "mode": "semantic"
+    },
+    {
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.973,
+      "top_k": 4,
+      "mode": "hybrid"
+    },
+    {
+      "questions": 56,
+      "recall_at_k": 1.0,
+      "mrr": 0.991,
+      "top_k": 4,
+      "mode": "hybrid+rerank"
+    }
+  ],
+  "answers": {
+    "answerable_questions": 56,
+    "unanswerable_questions": 15,
+    "answer_accuracy": 1.0,
+    "citation_accuracy": 1.0,
+    "false_refusal_rate": 0.0,
+    "correct_refusal_rate": 0.933,
+    "median_seconds_per_question": 6.6,
+    "unanswerable_with_unsupported_claims": 0.0
+  },
+  "trust": {
+    "correct_answers_scored": 56,
+    "falsified_answers_scored": 43,
+    "mean_trust_correct": 99.2,
+    "mean_trust_falsified": 4.7,
+    "auroc_correct_vs_falsified": 1.0,
+    "falsified_scored_green": 0.0
+  },
+  "per_question": [
+    {
+      "id": "q000",
+      "question": "Where does Brightleaf Robotics have offices?",
+      "answerable": true,
+      "answer": "Brightleaf Robotics has offices in Pune, Berlin and Toronto [hr_handbook.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.5,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q001",
+      "question": "What are the core working hours?",
+      "answerable": true,
+      "answer": "Core working hours are 10:00 to 16:00, Monday to Friday [hr_handbook.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.3,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q002",
+      "question": "How many hours per week must employees work?",
+      "answerable": true,
+      "answer": "Employees must work 40 hours per week, and they can choose their start and finish times outside core hours (10:00 to 16:00, Monday to Friday) [hr_handbook.pdf, p.1]. They must record their hours in the TimeTrack portal by 18:00 every Friday [hr_handbook.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 9.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q003",
+      "question": "By when must hours be recorded in TimeTrack?",
+      "answerable": true,
+      "answer": "Employees must record their hours in the TimeTrack portal by 18:00 every Friday [hr_handbook.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q004",
+      "question": "How long is the probation period for new employees?",
+      "answerable": true,
+      "answer": "New employees serve a probation period of 6 months [hr_handbook.pdf, p.2]. During probation, either side may end employment with 2 weeks' notice [hr_handbook.pdf, p.2].\n\nInterns have a separate probation period of 1 month [intern_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 10.9,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q005",
+      "question": "What is the notice period during probation?",
+      "answerable": true,
+      "answer": "The notice period depends on the type of engagement:\n\n- **Employees:** During the 6-month probation period, either side may end employment with 2 weeks' notice [hr_handbook.pdf, p.2].\n- **Interns:** Interns may end the internship with 1 week's notice, and the internship has a probation period of 1 month [intern_policy.pdf, p.1].\n\nThe excerpts do not give a probation-specific notice period for contractors. They only state that either side may end a contractor engagement with 30 days' written notice [contractor_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 11.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q006",
+      "question": "What is the notice period for managers after probation?",
+      "answerable": true,
+      "answer": "After probation, the notice period for managers is 3 months [hr_handbook.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 9.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q007",
+      "question": "How many days of paid annual leave do full-time employees get?",
+      "answerable": true,
+      "answer": "Full-time employees receive 25 days of paid annual leave per year, in addition to public holidays [hr_handbook.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q008",
+      "question": "How many unused annual leave days can be carried over?",
+      "answerable": true,
+      "answer": "Up to 5 unused annual leave days may be carried over, and carried-over days expire on 31 March [hr_handbook.pdf, p.3].\n\nThis applies to full-time employees. The excerpts do not state a carry-over rule for interns.",
+      "refused": false,
+      "trust": 87.5,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "PARTIALLY_SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 9.3,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q009",
+      "question": "When do carried-over leave days expire?",
+      "answerable": true,
+      "answer": "Carried-over annual leave days expire on 31 March. Up to 5 unused days may be carried over [hr_handbook.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 6.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q010",
+      "question": "How many paid sick days do employees get per year?",
+      "answerable": true,
+      "answer": "Employees receive 12 days of paid sick leave per year [hr_handbook.pdf, p.3]. A doctor's note is needed for absences longer than 3 consecutive working days [hr_handbook.pdf, p.3].\n\nInterns are covered separately and receive 5 days of paid sick leave [intern_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 9.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q011",
+      "question": "When is a doctor's note needed for sick leave?",
+      "answerable": true,
+      "answer": "A doctor's note is needed for sick leave absences longer than 3 consecutive working days [hr_handbook.pdf, p.3].\n\nThis applies to employees, who receive 12 days of paid sick leave per year [hr_handbook.pdf, p.3]. The intern policy gives interns 5 days of paid sick leave [intern_policy.pdf, p.2], but the excerpts do not say whether the doctor's note requirement also applies to interns.",
+      "refused": false,
+      "trust": 90.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "PARTIALLY_SUPPORTED"
+      ],
+      "seconds": 9.2,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q012",
+      "question": "How much parental leave do birthing parents get?",
+      "answerable": true,
+      "answer": "Birthing parents receive 26 weeks of fully paid parental leave [hr_handbook.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.8,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q013",
+      "question": "How much parental leave do non-birthing parents get?",
+      "answerable": true,
+      "answer": "Non-birthing parents receive 6 weeks of fully paid parental leave, to be taken within the child's first year [hr_handbook.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 9.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q014",
+      "question": "How many days of compassionate leave can employees take?",
+      "answerable": true,
+      "answer": "Employees may take up to 5 days of paid compassionate leave after the death of a close family member [hr_handbook.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 9.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q015",
+      "question": "Up to what percentage does the company match pension contributions?",
+      "answerable": true,
+      "answer": "The company matches pension contributions up to 6% of base salary [hr_handbook.pdf, p.5].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.8,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q016",
+      "question": "What is the annual learning budget?",
+      "answerable": true,
+      "answer": "The annual learning budget depends on your role:\n\n- **Employees:** 1,500 EUR per year, for courses, books and conferences [hr_handbook.pdf, p.5].\n- **Interns:** 300 EUR [intern_policy.pdf, p.3].\n\nThe documents do not state a learning budget for contractors. The contractor policy excerpt does not mention one.",
+      "refused": false,
+      "trust": 80.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED",
+        "PARTIALLY_SUPPORTED",
+        "PARTIALLY_SUPPORTED"
+      ],
+      "seconds": 8.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q017",
+      "question": "How much is the monthly wellness allowance?",
+      "answerable": true,
+      "answer": "The monthly wellness allowance is 50 EUR, and it can be used for gym memberships or fitness classes [hr_handbook.pdf, p.5].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.3,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q018",
+      "question": "How many days per week can employees work remotely?",
+      "answerable": true,
+      "answer": "Employees may work remotely up to 3 days per week with their manager's agreement [hr_handbook.pdf, p.6].\n\nInterns have a different allowance: they may work remotely 1 day per week [intern_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.8,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q019",
+      "question": "How much is the home office allowance?",
+      "answerable": true,
+      "answer": "The home office allowance is a one-time payment of 400 EUR, paid during the first month of employment [hr_handbook.pdf, p.6].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q020",
+      "question": "Above what value must supplier gifts be declared?",
+      "answerable": true,
+      "answer": "Gifts from suppliers worth more than 75 EUR must be declared to the compliance team [hr_handbook.pdf, p.6].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q021",
+      "question": "What is the minimum password length?",
+      "answerable": true,
+      "answer": "Passwords must be at least 14 characters long [it_security_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.3,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q022",
+      "question": "Do passwords need to be rotated regularly?",
+      "answerable": true,
+      "answer": "No. Passwords only need to be changed if a compromise is suspected, and routine rotation is not required [it_security_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q023",
+      "question": "After how many failed sign-in attempts is an account locked?",
+      "answerable": true,
+      "answer": "Accounts are locked after 10 failed sign-in attempts [it_security_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q024",
+      "question": "Which systems require multi-factor authentication?",
+      "answerable": true,
+      "answer": "Multi-factor authentication is mandatory for email, VPN and the HR portal [it_security_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q025",
+      "question": "After how many minutes of inactivity must laptops lock the screen?",
+      "answerable": true,
+      "answer": "Laptops must lock the screen after 5 minutes of inactivity [it_security_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q026",
+      "question": "How can personal phones access company email?",
+      "answerable": true,
+      "answer": "Personal phones may access company email only through the approved Intune app [it_security_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 8.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q027",
+      "question": "How quickly must suspected security incidents be reported?",
+      "answerable": true,
+      "answer": "Suspected security incidents must be reported to the security team within 1 hour of discovery [it_security_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.5,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q028",
+      "question": "Which extension should I call to report a lost laptop?",
+      "answerable": true,
+      "answer": "Report a lost laptop to the IT helpdesk on extension 4400 [it_security_policy.pdf, p.3]. Lost or stolen devices must be reported to that extension, and you should also report any suspected security incident to the security team within 1 hour of discovery [it_security_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 9.9,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q029",
+      "question": "How should phishing emails be reported?",
+      "answerable": true,
+      "answer": "Phishing emails should be reported using the Report Phish button in Outlook [it_security_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.2,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q030",
+      "question": "What are the data classification levels?",
+      "answerable": true,
+      "answer": "Data is classified into four levels: Public, Internal, Confidential and Restricted [it_security_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q031",
+      "question": "Where may restricted data such as salaries be stored?",
+      "answerable": true,
+      "answer": "Restricted data, such as salary information, may only be stored on the encrypted HR drive [it_security_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q032",
+      "question": "Who must approve sharing confidential documents outside the company?",
+      "answerable": true,
+      "answer": "Confidential documents must not be shared outside the company without approval from the data owner [it_security_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 8.9,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q033",
+      "question": "Which AI assistant may be used for company data?",
+      "answerable": true,
+      "answer": "Employees may use only the approved internal AI assistant for company data [it_security_policy.pdf, p.5]. Confidential or Restricted data must never be pasted into public AI chatbots [it_security_policy.pdf, p.5].\n\nThe excerpts do not name the specific assistant.",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q034",
+      "question": "Where must developers keep system prompts?",
+      "answerable": true,
+      "answer": "Developers who build AI features must keep system prompts in version control and review them like code [it_security_policy.pdf, p.5].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q035",
+      "question": "How far in advance must business travel be booked?",
+      "answerable": true,
+      "answer": "All business travel must be booked through the TravelDesk portal at least 10 days before departure [travel_expense_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q036",
+      "question": "Who must approve trips abroad?",
+      "answerable": true,
+      "answer": "Trips abroad require approval from the department head [travel_expense_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q037",
+      "question": "Which class must be booked for flights under 5 hours?",
+      "answerable": true,
+      "answer": "Economy class is required for flights under 5 hours [travel_expense_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.5,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q038",
+      "question": "When may premium economy be booked?",
+      "answerable": true,
+      "answer": "Premium economy may be booked for flights of 5 hours or more [travel_expense_policy.pdf, p.2]. For flights under 5 hours, economy class is required [travel_expense_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 11.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q039",
+      "question": "When is train travel preferred over flying?",
+      "answerable": true,
+      "answer": "Train travel is preferred over flying for journeys under 4 hours [travel_expense_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q040",
+      "question": "What is the hotel limit per night in capital cities?",
+      "answerable": true,
+      "answer": "Hotels are reimbursed up to 180 EUR per night in capital cities [travel_expense_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 8.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q041",
+      "question": "What is the daily meal allowance outside Europe?",
+      "answerable": true,
+      "answer": "The daily meal allowance outside Europe is 60 EUR [travel_expense_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.2,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q042",
+      "question": "Is alcohol reimbursed?",
+      "answerable": true,
+      "answer": "No, alcohol is not reimbursed [travel_expense_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q043",
+      "question": "What is the mileage rate for using a private car?",
+      "answerable": true,
+      "answer": "Use of a private car is reimbursed at 0.30 EUR per kilometre [travel_expense_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 8.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q044",
+      "question": "Within how many days must expense claims be submitted?",
+      "answerable": true,
+      "answer": "Expense claims must be submitted within 60 days of the expense, with receipts [travel_expense_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 6.5,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q045",
+      "question": "Who must approve expense claims above 2,000 EUR?",
+      "answerable": true,
+      "answer": "Claims above 2,000 EUR require approval from the finance director [travel_expense_policy.pdf, p.4].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q046",
+      "question": "Do contractors receive paid annual leave?",
+      "answerable": true,
+      "answer": "No. Contractors do not receive paid annual leave [contractor_policy.pdf, p.1]. Any unpaid time off must be agreed with the engagement manager 2 weeks in advance [contractor_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 8.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q047",
+      "question": "How far in advance must contractors agree unpaid time off?",
+      "answerable": true,
+      "answer": "Contractors must agree unpaid time off with the engagement manager 2 weeks in advance [contractor_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.6,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q048",
+      "question": "By when must contractors send their monthly invoice?",
+      "answerable": true,
+      "answer": "Contractors must invoice monthly, by the 5th working day of the following month [contractor_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 13.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q049",
+      "question": "Within how many days are contractor invoices paid?",
+      "answerable": true,
+      "answer": "Contractor invoices are paid within 30 days of receipt [contractor_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 6.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q050",
+      "question": "What notice is needed to end a contractor engagement?",
+      "answerable": true,
+      "answer": "Either side may end a contractor engagement with 30 days' written notice [contractor_policy.pdf, p.3]. Contractors must also return all company property and access badges on their last day [contractor_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 7.4,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q051",
+      "question": "How many days of paid annual leave do interns get?",
+      "answerable": true,
+      "answer": "Interns receive 10 days of paid annual leave per year, pro rata for shorter internships [intern_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 8.7,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q052",
+      "question": "How many days per week can interns work remotely?",
+      "answerable": true,
+      "answer": "Interns may work remotely 1 day per week [intern_policy.pdf, p.2].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.9,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q053",
+      "question": "How long is the probation period for interns?",
+      "answerable": true,
+      "answer": "Interns have a probation period of 1 month [intern_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 5.5,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q054",
+      "question": "What is the learning budget for interns?",
+      "answerable": true,
+      "answer": "Each intern has a learning budget of 300 EUR [intern_policy.pdf, p.3].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED"
+      ],
+      "seconds": 7.0,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "q055",
+      "question": "How many hours per week do interns work?",
+      "answerable": true,
+      "answer": "Interns work 30 hours per week, scheduled with their mentor [intern_policy.pdf, p.1].",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 6.1,
+      "correct": true,
+      "cites_source": true
+    },
+    {
+      "id": "u000",
+      "question": "What is the name of the CEO?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 2.9
+    },
+    {
+      "id": "u001",
+      "question": "What was the company's revenue last year?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.0
+    },
+    {
+      "id": "u002",
+      "question": "How many employees work in the Toronto office?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.0
+    },
+    {
+      "id": "u003",
+      "question": "Is dental insurance included in the benefits?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 2.9
+    },
+    {
+      "id": "u004",
+      "question": "What is the office dress code?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.8
+    },
+    {
+      "id": "u005",
+      "question": "What percentage is the annual bonus?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 4.0
+    },
+    {
+      "id": "u006",
+      "question": "How much is the monthly internet allowance?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.4
+    },
+    {
+      "id": "u007",
+      "question": "Which VPN software does the company use?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.0
+    },
+    {
+      "id": "u008",
+      "question": "What is the daily allowance for interns?",
+      "answerable": false,
+      "answer": "The documents don't give a daily allowance specific to interns.\n\n- The intern policy says interns are paid a monthly stipend on the last working day of the month [intern_policy.pdf, p.3]. It does not state the amount or mention a daily allowance.\n- The travel expense policy sets a daily meal allowance of 45 EUR within Europe and 60 EUR outside Europe [travel_expense_policy.pdf, p.3]. It does not say whether this applies to interns.\n\nWhether interns are entitled to the travel meal allowance is not covered by the excerpts.",
+      "refused": false,
+      "trust": 100.0,
+      "claims": [
+        "SUPPORTED",
+        "SUPPORTED"
+      ],
+      "seconds": 11.7
+    },
+    {
+      "id": "u009",
+      "question": "Are pets allowed in the office?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.1
+    },
+    {
+      "id": "u010",
+      "question": "When is the company holiday party?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 2.8
+    },
+    {
+      "id": "u011",
+      "question": "What is the maximum budget for a new laptop?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.2
+    },
+    {
+      "id": "u012",
+      "question": "Which airline should employees prefer?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.3
+    },
+    {
+      "id": "u013",
+      "question": "What is the Wi-Fi password?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 3.7
+    },
+    {
+      "id": "u014",
+      "question": "In which year was the company founded?",
+      "answerable": false,
+      "answer": "The documents do not contain this information.",
+      "refused": true,
+      "trust": null,
+      "claims": [],
+      "seconds": 2.8
+    }
+  ],
+  "injection": {
+    "samples": 60,
+    "attacks": 30,
+    "benign": 30,
+    "rules_only": {
+      "flagged": {
+        "precision": 0.909,
+        "recall": 0.667,
+        "false_alarm_rate": 0.067,
+        "tp": 20,
+        "fp": 2,
+        "fn": 10,
+        "tn": 28
+      },
+      "removed": {
+        "precision": 0.909,
+        "recall": 0.667,
+        "false_alarm_rate": 0.067,
+        "tp": 20,
+        "fp": 2,
+        "fn": 10,
+        "tn": 28
+      }
+    },
+    "ai_only": {
+      "flagged": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "false_alarm_rate": 0.0,
+        "tp": 30,
+        "fp": 0,
+        "fn": 0,
+        "tn": 30
+      },
+      "ai_checked": 60
+    },
+    "combined": {
+      "flagged": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "false_alarm_rate": 0.0,
+        "tp": 30,
+        "fp": 0,
+        "fn": 0,
+        "tn": 30
+      },
+      "removed": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "false_alarm_rate": 0.0,
+        "tp": 30,
+        "fp": 0,
+        "fn": 0,
+        "tn": 30
+      }
+    },
+    "details": {
+      "rules_only_missed_attacks": [
+        "exfiltration",
+        "polite / indirect",
+        "polite / indirect",
+        "polite / indirect",
+        "polite / indirect",
+        "fact-checker",
+        "fake structure",
+        "fake structure",
+        "subtle",
+        "subtle"
+      ],
+      "rules_only_false_alarms": [
+        "Team leads act as a bridge between engineering and product.",
+        "Congratulations, you are now a member of the evaluation team."
+      ],
+      "combined_missed_attacks": [],
+      "combined_false_removals": []
+    }
+  },
+  "claude_calls": 233
+}

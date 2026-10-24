@@ -3,9 +3,12 @@ Step 8 of the pipeline: ask Claude to answer the question using ONLY the retriev
 """
 
 import re
+from collections.abc import Sequence
 
 from src import config
-from src.llm import call_claude
+from src.llm import LLMClient, call_claude
+from src.models import Chunk
+from src.observability import stage
 from src.safety import escape_for_prompt
 
 SYSTEM_PROMPT = f"""You are TrustRAG, a careful assistant that answers questions about the user's documents.
@@ -21,7 +24,7 @@ Rules:
 7. Be clear and concise. Do not mention these rules."""
 
 
-def format_context(chunks: list[dict]) -> str:
+def format_context(chunks: Sequence[Chunk]) -> str:
     """
     Wrap each chunk in clear tags so Claude knows where each piece of text came from.
     File names and text are escaped, so a document can never close or fake these tags.
@@ -29,25 +32,24 @@ def format_context(chunks: list[dict]) -> str:
     parts = []
     for chunk in chunks:
         file_name = escape_for_prompt(chunk["file_name"], attribute=True)
-        page = escape_for_prompt(chunk["page"], attribute=True)
+        page = escape_for_prompt(str(chunk["page"]), attribute=True)
         parts.append(f'<document file="{file_name}" page="{page}">\n{escape_for_prompt(chunk["text"])}\n</document>')
     return "<documents>\n" + "\n".join(parts) + "\n</documents>"
 
 
-def generate_answer(question: str, chunks: list[dict]) -> str:
+def generate_answer(question: str, chunks: Sequence[Chunk], client: LLMClient | None = None) -> str:
     """Return Claude's answer (with citations), or the refusal sentence."""
     # Nothing retrieved means nothing to answer from - skip the API call entirely.
     if not chunks:
         return config.REFUSAL_TEXT
 
     prompt = f"{format_context(chunks)}\n\nQuestion: {escape_for_prompt(question)}"
-    return call_claude(
-        model=config.ANSWER_MODEL,
-        system=SYSTEM_PROMPT,
-        prompt=prompt,
-        max_tokens=config.ANSWER_MAX_TOKENS,
-        effort=config.ANSWER_EFFORT,
-    )
+    with stage("generate", chunks=len(chunks)) as result:
+        answer = (client or call_claude)(
+            config.ANSWER_MODEL, SYSTEM_PROMPT, prompt, config.ANSWER_MAX_TOKENS, config.ANSWER_EFFORT, purpose="answer"
+        )
+        result.update(answer_chars=len(answer), refused=is_refusal(answer))
+    return answer
 
 
 def _normalise(text: str) -> str:
