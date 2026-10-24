@@ -8,6 +8,13 @@ textColor = "#1F2937"
 gatherUsageStats = false
 
 [server]
+# Only accept connections from this computer. Without this, Streamlit listens on every network
+# connection and anyone on the same Wi-Fi could open the app. (The Docker image overrides this with
+# --server.address=0.0.0.0 inside the container, and the docker run command publishes it on 127.0.0.1 only.)
+address = "localhost"
+# Block cross-site request forgery and requests from other websites (both on by default; set explicitly).
+enableXsrfProtection = true
+enableCORS = true
 # Largest file a user may upload, in MB (protects memory and CPU).
 maxUploadSize = 25
 
