@@ -12,6 +12,9 @@ Three ways to reach Claude (chosen with LLM_PROVIDER in .env):
 import json
 import os
 import re
+import threading
+import time
+from collections import deque
 
 import anthropic
 
@@ -31,6 +34,23 @@ _client = None
 
 def get_call_count() -> int:
     return _call_count
+
+
+# App-wide usage limit: timestamps of recent calls, shared by all users (and all threads, hence the lock).
+_recent_calls = deque()
+_rate_lock = threading.Lock()
+
+
+def _check_rate_limit() -> None:
+    """Refuse the call if the whole app already made MAX_CALLS_PER_HOUR calls in the last hour."""
+    now = time.time()
+    with _rate_lock:
+        while _recent_calls and now - _recent_calls[0] > 3600:
+            _recent_calls.popleft()
+        if len(_recent_calls) >= config.MAX_CALLS_PER_HOUR:
+            wait_minutes = int((3600 - (now - _recent_calls[0])) // 60) + 1
+            raise LLMError(f"This app has reached its usage limit for now. Please try again in about {wait_minutes} minutes.")
+        _recent_calls.append(now)
 
 
 def missing_key_message() -> str | None:
@@ -72,6 +92,7 @@ def call_claude(model: str, system: str, prompt: str | list, max_tokens: int, ef
     `prompt` is normally a string; it can also be a list of content blocks (e.g. an image + text).
     """
     global _call_count
+    _check_rate_limit()
 
     # Subscription mode: hand the request to Claude Code instead of the API.
     if config.PROVIDER == "claude_code":

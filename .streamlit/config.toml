@@ -6,3 +6,13 @@ textColor = "#1F2937"
 
 [browser]
 gatherUsageStats = false
+
+[server]
+# Largest file a user may upload, in MB (protects memory and CPU).
+maxUploadSize = 25
+
+[client]
+# Show friendly messages instead of full error details (tracebacks) to users.
+showErrorDetails = "none"
+# Hide developer menus from users.
+toolbarMode = "viewer"

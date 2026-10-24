@@ -211,15 +211,21 @@ Apple Silicon Macs, Linux servers and cloud VMs. Docker picks the right version 
 # Build for your machine
 docker build -t trustrag .
 
-# Run (secrets come from .env at runtime, never baked into the image)
-docker run --rm --env-file .env -p 7860:7860 trustrag
+# Run - reachable only from this computer (127.0.0.1); secrets are passed at runtime, never baked into the image
+docker run --rm --env-file .env -p 127.0.0.1:7860:7860 \
+  -v "$HOME/.trustrag/claude_token:/run/secrets/claude_code_oauth_token:ro" trustrag
 ```
 
 Open **http://localhost:7860**.
 
 **Using a Claude subscription inside Docker:** containers can't see your computer's Claude Code login, so create a
-long-lived login token once with `claude setup-token` and add it to `.env` as `CLAUDE_CODE_OAUTH_TOKEN=...`.
+long-lived login token once with `claude setup-token` and save it in a private file, `~/.trustrag/claude_token`
+(make the folder private with `chmod 700 ~/.trustrag` and the file with `chmod 600 ~/.trustrag/claude_token`).
+The command above mounts it as a read-only secret file, which keeps it out of `docker inspect`.
 (With an API key, set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` instead.)
+
+**Exposing it beyond your computer** (a team server): set `APP_PASSWORD` in `.env` so the app asks for a password,
+publish the port without `127.0.0.1:`, and use an API key rather than a personal subscription.
 
 **Keep documents between restarts** by adding a volume: `-v trustrag-data:/app/chroma_db`.
 
@@ -307,12 +313,11 @@ extend and maintain.
 pytest -v
 ```
 
-58 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
-injection scanner (attack phrases that must be caught, real-world false alarms that must not be, the AI layer's
-final say, batching, caching, progress reporting, and a single failed batch not disabling the AI layer), and the
-subscription connector (request format, friendly
-errors, retry with backoff). The suite makes **no API calls** (the LLM is replaced by a fake
-where needed), so it runs free in about a second and on every push via GitHub Actions.
+82 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
+injection scanner (attack phrases that must be caught, real-world false alarms that must not be, batching, caching
+and fault tolerance), the subscription connector, and a **security regression suite** (`tests/test_security.py`)
+that replays each attack from an internal red-team review and checks it now fails. The suite makes **no API calls**
+(the LLM is replaced by a fake where needed), so it runs free in about two seconds and on every push via GitHub Actions.
 
 ---
 
@@ -345,11 +350,25 @@ a per-file OCR page limit, sensible `max_tokens`, and a live API-call counter in
   images, for OCR) are sent to Claude.
 - **Defence in depth against prompt injection:**
   1. **Before indexing:** the two-layer scanner removes dangerous sections, so the answering model never sees them.
-  2. **At answer time:** all document text is wrapped in explicit delimiters and treated as **untrusted data** in
-     every prompt (answering, fact-checking, OCR and scanning), so anything that slips past the scanner is still not obeyed.
-  3. **After answering:** the fact-checker flags any claim that isn't supported by the real documents.
+     The rules first undo common disguises (hidden characters, look-alike letters, s-p-a-c-e-d letters, other
+     languages), and strong attack phrases can't be "talked down" by the AI layer.
+  2. **At answer time:** all document text and file names are **escaped** and wrapped in delimiters (random per call
+     in the scanner), so a document can't close or fake a tag. Uploaded file names are sanitised.
+  3. **After answering:** the fact-checker labels every claim, and a claim only counts as supported if its evidence
+     quote really exists word for word. An answer is treated as a refusal only if it is *exactly* the refusal sentence.
+- **Safe display:** model output is rendered without images or clickable links, so a planted instruction can't make
+  the browser send data to another website.
+- **Private workspaces:** each browser session has its own document store; users can't see, delete or overwrite each
+  other's files. Abandoned workspaces are deleted after 24 hours.
+- **Access and abuse limits:** optional password (`APP_PASSWORD`) with lockout after repeated wrong guesses, an
+  app-wide hourly call limit, per-session question and file limits, a 25 MB upload limit, and a 300-page PDF limit.
+  Docker examples bind to `127.0.0.1` only.
+- **Secrets:** in Docker, the subscription token can be mounted as a read-only secret file
+  (`/run/secrets/claude_code_oauth_token`), which keeps it out of `docker inspect` and the container environment.
 - Scan batches fail independently: if the AI can't check some sections (e.g. a temporary error), the free
   rule-based layer covers them, the report says how many sections the AI checked, and a retry re-checks only those.
+- **Known limits:** the trust score measures support by *your* documents, not whether those documents are true; and
+  no filter catches every possible prompt injection, which is why the layers above overlap.
 
 ---
 

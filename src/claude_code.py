@@ -26,6 +26,15 @@ def is_installed() -> bool:
     return shutil.which("claude") is not None
 
 
+def _read_token_file() -> str:
+    """Read the subscription token from the secret file, if one is mounted. Never logged or shown."""
+    try:
+        with open(config.CLAUDE_TOKEN_FILE, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 def _find_result(output: str) -> dict | None:
     """Claude Code prints one JSON object per line; the last one with type 'result' holds the reply."""
     result = None
@@ -64,6 +73,12 @@ def ask(model: str, system: str, content: str | list, effort: str | None = None)
 
     # Make sure Claude Code uses the subscription login, not an API key that might be set elsewhere.
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+    # In Docker, the login token can be a mounted secret file. We hand it to Claude Code only for this call,
+    # so it never appears in the container's environment (and so not in `docker inspect`).
+    if not env.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        token = _read_token_file()
+        if token:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = token
 
     for attempt in range(config.MAX_RETRIES + 1):
         try:
@@ -97,4 +112,4 @@ def ask(model: str, system: str, content: str | list, effort: str | None = None)
             raise ClaudeCodeError("Claude Code is not logged in. Run `claude` in a terminal and use /login with your subscription.")
         if "limit" in lower:
             raise ClaudeCodeError("You've reached your Claude subscription usage limit. It resets after a few hours.")
-        raise ClaudeCodeError(f"Claude Code returned an error: {error_text[:200]}")
+        raise ClaudeCodeError("Claude could not answer this request. Please try again.")

@@ -37,9 +37,12 @@ def _save_cache(cache: dict) -> None:
 
 
 def _render_page_png(pdf: pdfium.PdfDocument, page_number: int) -> bytes:
-    """Draw one page (1-based number) as a PNG image."""
-    image = pdf[page_number - 1].render(scale=2).to_pil()
-    image.thumbnail((1568, 1568))  # Claude works best with images up to ~1568px on the long side
+    """Draw one page (1-based number) as a PNG image, never larger than OCR_MAX_RENDER_PX on the long side."""
+    page = pdf[page_number - 1]
+    width, height = page.get_size()  # in PDF points
+    # Choose the zoom BEFORE drawing, so a page with giant dimensions can't use up all the memory.
+    scale = min(2.0, config.OCR_MAX_RENDER_PX / max(width, height, 1))
+    image = page.render(scale=scale).to_pil()
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()

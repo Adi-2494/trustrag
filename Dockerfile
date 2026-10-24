@@ -1,8 +1,11 @@
 # TrustRAG - production container (multi-architecture: linux/amd64 + linux/arm64)
 # Build (this machine):   docker build -t trustrag .
 # Build (both chip types): docker buildx build --platform linux/amd64,linux/arm64 -t <user>/trustrag:latest --push .
-# Run:                     docker run --env-file .env -p 7860:7860 trustrag
-# Secrets are passed at runtime with --env-file and are never copied into the image.
+# Run (only reachable from this computer):
+#   docker run --rm --env-file .env -p 127.0.0.1:7860:7860 \
+#     -v "$HOME/.trustrag/claude_token:/run/secrets/claude_code_oauth_token:ro" trustrag
+# Secrets are passed at runtime and are never copied into the image. Mounting the token as a file keeps it
+# out of `docker inspect`. Set APP_PASSWORD in .env before exposing the app beyond 127.0.0.1.
 
 # Stage 1: official Node.js image, used only to borrow its small, ready-made Node binary.
 FROM node:22-bookworm-slim AS node

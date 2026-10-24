@@ -45,6 +45,11 @@ def load_pdf(file, file_name: str) -> list[dict]:
     if reader.is_encrypted:
         raise LoaderError(f"'{file_name}' is password-protected. Please upload an unlocked PDF.")
 
+    if len(reader.pages) > config.MAX_PDF_PAGES:
+        raise LoaderError(
+            f"'{file_name}' has {len(reader.pages)} pages. The limit is {config.MAX_PDF_PAGES} pages per PDF."
+        )
+
     # 1) Try the free way first: read the real text of every page.
     page_texts = {}
     for page_number, page in enumerate(reader.pages, start=1):

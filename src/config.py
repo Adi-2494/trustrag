@@ -100,6 +100,23 @@ TRUST_GREEN = 80   # >= 80% is green
 TRUST_ORANGE = 50  # 50-79% is orange, below 50% is red
 
 # ---------------------------------------------------------------------------
+# Security and abuse limits
+# ---------------------------------------------------------------------------
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")                       # if set, the app asks for it first
+MAX_LOGIN_ATTEMPTS = 5                                             # wrong passwords before a pause
+LOGIN_LOCKOUT_SECONDS = 60
+MAX_CALLS_PER_HOUR = int(os.getenv("MAX_CALLS_PER_HOUR", "200"))   # all users together (protects your plan / bill)
+MAX_QUESTIONS_PER_HOUR = int(os.getenv("MAX_QUESTIONS_PER_HOUR", "30"))  # per browser session
+MAX_FILES_PER_SESSION = int(os.getenv("MAX_FILES_PER_SESSION", "20"))
+MAX_UPLOAD_MB = 25                                                 # also set in .streamlit/config.toml
+MAX_PDF_PAGES = 300                                                # bigger PDFs are refused (memory/CPU safety)
+OCR_MAX_RENDER_PX = 1568                                           # scanned pages are rendered no larger than this
+WORKSPACE_MAX_AGE_HOURS = 24                                       # private workspaces are deleted after this
+# Subscription token can come from a mounted file instead of an environment variable,
+# so it doesn't show up in `docker inspect`.
+CLAUDE_TOKEN_FILE = os.getenv("CLAUDE_TOKEN_FILE", "/run/secrets/claude_code_oauth_token")
+
+# ---------------------------------------------------------------------------
 # Injection scanner
 # ---------------------------------------------------------------------------
 SCAN_BATCH_SIZE = 10                 # chunks per Haiku call

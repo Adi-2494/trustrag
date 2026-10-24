@@ -5,6 +5,7 @@ Run with:  streamlit run app.py
 """
 
 import hashlib
+import hmac
 import time
 
 import streamlit as st
@@ -15,11 +16,48 @@ from src.generator import generate_answer, is_refusal
 from src.injection_scanner import filter_chunks, scan_chunks
 from src.llm import LLMError
 from src.loader import LoaderError, load_pdf
+from src.safety import safe_markdown, sanitize_filename
 from src.verifier import verify_answer
 
 st.set_page_config(page_title="TrustRAG", page_icon="🛡️", layout="wide")
 
+
+# ---------------------------------------------------------------------------
+# Optional password gate (set APP_PASSWORD in .env to turn it on)
+# ---------------------------------------------------------------------------
+def require_password() -> None:
+    """Stop the page until the right password is entered. Wrong guesses trigger a short lockout."""
+    if not config.APP_PASSWORD or st.session_state.get("authenticated"):
+        return
+    st.title("🛡️ TrustRAG")
+    locked_until = st.session_state.get("locked_until", 0)
+    if time.time() < locked_until:
+        st.error(f"Too many wrong passwords. Try again in {int(locked_until - time.time()) + 1} seconds.")
+        st.stop()
+    with st.form("login"):
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in")
+    if submitted:
+        # compare_digest takes the same time for any wrong password, so it can't be guessed by timing.
+        if hmac.compare_digest(password.encode(), config.APP_PASSWORD.encode()):
+            st.session_state.authenticated = True
+            st.session_state.failed_logins = 0
+            st.rerun()
+        st.session_state.failed_logins = st.session_state.get("failed_logins", 0) + 1
+        if st.session_state.failed_logins >= config.MAX_LOGIN_ATTEMPTS:
+            st.session_state.locked_until = time.time() + config.LOGIN_LOCKOUT_SECONDS
+            st.session_state.failed_logins = 0
+        st.error("Wrong password.")
+    st.stop()
+
+
+require_password()
+
 # st.session_state survives Streamlit's re-runs (the script re-runs on every click).
+if "workspace" not in st.session_state:
+    # Each browser session gets its own private document store; old, abandoned ones are cleaned up.
+    st.session_state.workspace = vectorstore.new_workspace_id()
+    vectorstore.cleanup_old_workspaces()
 if "processed_files" not in st.session_state:
     st.session_state.processed_files = set()   # hashes of files already added
 if "last_result" not in st.session_state:
@@ -28,6 +66,12 @@ if "scan_reports" not in st.session_state:
     st.session_state.scan_reports = {}         # file name -> injection scan report
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0          # changing this gives a fresh, empty upload box
+if "question_times" not in st.session_state:
+    st.session_state.question_times = []       # when this session asked questions (for the hourly limit)
+if "files_added" not in st.session_state:
+    st.session_state.files_added = 0
+
+WORKSPACE = st.session_state.workspace
 
 
 def file_hash(data: bytes) -> str:
@@ -61,30 +105,41 @@ def show_verification(verification: dict | None) -> None:
     color = trust_color(score)
     st.markdown(f"### Trust score: :{color}[{score:.0f}%]")
     st.progress(score / 100)
+    st.caption("The trust score shows how well the answer is backed by the documents you uploaded. "
+               "It can't tell whether those documents are themselves correct.")
 
     icons = {"SUPPORTED": "✅", "PARTIALLY_SUPPORTED": "⚠️", "NOT_SUPPORTED": "❌"}
     for claim in verification["claims"]:
-        st.markdown(f"{icons[claim['status']]} **{claim['claim']}**")
+        # Everything below comes from the model, so it is made safe before rendering (no images or links).
+        st.markdown(f"{icons[claim['status']]} **{safe_markdown(claim['claim'])}**")
         if claim["quote"]:
             source = f"{claim['file_name']}, p.{claim['page']}" if claim["file_name"] else "source unknown"
             note = "" if claim["quote_found"] else " *(quote not found word-for-word in the sources)*"
-            st.caption(f"“{claim['quote']}” — {source}{note}")
+            st.caption(f"“{safe_markdown(claim['quote'])}” — {safe_markdown(str(source))}{note}")
         elif claim["reason"]:
-            st.caption(claim["reason"])
+            st.caption(safe_markdown(claim["reason"]))
 
 
 def process_upload(uploaded_file, excluded_risks: list[str]) -> None:
     """Load -> chunk -> injection scan -> store one uploaded PDF, with friendly errors."""
     data = uploaded_file.getvalue()
+    name = sanitize_filename(uploaded_file.name)  # the file name is untrusted too
     fingerprint = file_hash(data)
     # Include the exclusion setting, so changing it re-processes the file (scan results are cached = free).
     key = f"{fingerprint}:{','.join(sorted(excluded_risks))}"
     if key in st.session_state.processed_files:
         return  # already done in this session with these settings
 
-    with st.spinner(f"Reading and security-scanning {uploaded_file.name}..."):
+    if len(data) > config.MAX_UPLOAD_MB * 1024 * 1024:
+        st.error(f"{name}: the file is larger than {config.MAX_UPLOAD_MB} MB.")
+        return
+    if st.session_state.files_added >= config.MAX_FILES_PER_SESSION:
+        st.error(f"{name}: you can add up to {config.MAX_FILES_PER_SESSION} files per session.")
+        return
+
+    with st.spinner(f"Reading and security-scanning {name}..."):
         try:
-            pages = load_pdf(uploaded_file, uploaded_file.name)
+            pages = load_pdf(data, name)
             chunks = chunk_pages(pages)
             progress = st.empty()
             report = scan_chunks(
@@ -93,19 +148,20 @@ def process_upload(uploaded_file, excluded_risks: list[str]) -> None:
             )
             progress.empty()
             safe_chunks = filter_chunks(chunks, report, excluded_risks)
-            vectorstore.delete_file(uploaded_file.name)  # remove any older version of this file first
-            vectorstore.add_chunks(safe_chunks)
+            vectorstore.delete_file(WORKSPACE, name)  # remove any older version of this file (your workspace only)
+            vectorstore.add_chunks(WORKSPACE, safe_chunks)
         except (LoaderError, LLMError) as e:
-            st.error(f"{uploaded_file.name}: {e}")
+            st.error(f"{name}: {e}")
             return
 
     report["excluded_risks"] = list(excluded_risks)
-    st.session_state.scan_reports[uploaded_file.name] = report
+    st.session_state.scan_reports[name] = report
     st.session_state.processed_files.add(key)
-    st.success(f"✅ Successfully read {uploaded_file.name}")
+    st.session_state.files_added += 1
+    st.success(f"✅ Successfully read {name}")
     removed = len(chunks) - len(safe_chunks)
     if removed:
-        st.warning(f"🛡️ {removed} suspicious section(s) removed from {uploaded_file.name}. See the Security report.")
+        st.warning(f"🛡️ {removed} suspicious section(s) removed from {name}. See the Security report.")
 
 
 def show_security_report() -> None:
@@ -133,9 +189,16 @@ def show_security_report() -> None:
                 if item["rules"]:
                     st.caption("Matched rules: " + ", ".join(item["rules"]))
                 if item["reason"]:
-                    st.caption("AI reason: " + item["reason"])
+                    st.caption("AI reason: " + safe_markdown(item["reason"]))
                 st.text(item["text"][:300] + ("..." if len(item["text"]) > 300 else ""))
             st.divider()
+
+
+def question_limit_reached() -> bool:
+    """True if this session asked MAX_QUESTIONS_PER_HOUR questions in the last hour."""
+    now = time.time()
+    st.session_state.question_times = [t for t in st.session_state.question_times if now - t < 3600]
+    return len(st.session_state.question_times) >= config.MAX_QUESTIONS_PER_HOUR
 
 
 # ---------------------------------------------------------------------------
@@ -162,16 +225,17 @@ with st.sidebar:
             process_upload(uploaded_file, excluded_risks)
 
     st.divider()
-    files = vectorstore.list_files()
+    files = vectorstore.list_files(WORKSPACE)
     if files:
-        st.caption("Your documents:")
+        st.caption("Your documents (private to this session):")
         for name in files:
-            st.write(f"- {name}")
+            st.text(f"• {name}")
         if st.button("🗑️ Clear all documents"):
-            vectorstore.clear()
+            vectorstore.clear(WORKSPACE)  # only this session's documents
             st.session_state.processed_files = set()
             st.session_state.last_result = None
             st.session_state.scan_reports = {}
+            st.session_state.files_added = 0
             st.session_state.uploader_key += 1  # also empty the upload box, so files aren't re-added
             st.rerun()
     else:
@@ -179,7 +243,6 @@ with st.sidebar:
 
     st.divider()
     st.metric("API calls (since app started)", llm.get_call_count())
-    st.caption(f"Provider: {config.PROVIDER} · Answer: {config.ANSWER_MODEL} · Checker: {config.CHECKER_MODEL}")
 
 # ---------------------------------------------------------------------------
 # Main area: ask a question, show the answer
@@ -196,19 +259,22 @@ show_security_report()
 
 # A form lets the user press Enter to submit.
 with st.form("question_form"):
-    question = st.text_input("Your question", placeholder="e.g. How many days of annual leave do I get?")
+    question = st.text_input("Your question", placeholder="e.g. How many days of annual leave do I get?", max_chars=500)
     asked = st.form_submit_button("Ask")
 
 if asked:
     if not question.strip():
         st.warning("Please type a question first.")
-    elif vectorstore.count() == 0:
+    elif vectorstore.count(WORKSPACE) == 0:
         st.warning("Please upload at least one PDF first.")
+    elif question_limit_reached():
+        st.warning(f"You've asked {config.MAX_QUESTIONS_PER_HOUR} questions in the last hour. Please wait a while.")
     else:
+        st.session_state.question_times.append(time.time())
         try:
             started = time.time()
             with st.spinner("Step 1 of 2: searching your documents and writing an answer (usually 5–10 seconds)..."):
-                chunks = vectorstore.retrieve(question)
+                chunks = vectorstore.retrieve(WORKSPACE, question)
                 answer = generate_answer(question, chunks)
             # The fact-check is a bonus: if it fails, still show the answer (with a warning).
             verification = None
@@ -228,11 +294,11 @@ if asked:
 result = st.session_state.last_result
 if result:
     st.subheader("Answer")
-    st.caption(f"Question: {result['question']} · answered and fact-checked in {result.get('seconds', '?')}s")
+    st.caption(f"Question: {safe_markdown(result['question'])} · answered and fact-checked in {result.get('seconds', '?')}s")
     if is_refusal(result["answer"]):
         st.info(result["answer"])
     else:
-        st.markdown(result["answer"])
+        st.markdown(safe_markdown(result["answer"]))  # no images/links from the model
 
     show_verification(result.get("verification"))
 
