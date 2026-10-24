@@ -48,9 +48,10 @@ internal knowledge bases.
   anything the checker can't back up is flagged.
 - **Honest refusals.** If the answer isn't in the documents, TrustRAG says so instead of guessing.
 - **Prompt-injection scanner.** Two layers check every chunk *before* it is indexed: free regex rules for known
-  attack phrases and encoded payloads, plus Claude Haiku classifying chunks in batches of 10 to catch cleverly
-  worded attacks. Flagged sections get a risk level (🔴 HIGH / 🟠 MEDIUM / 🟡 LOW). You choose which levels to
-  remove (default: HIGH), and results are cached per file.
+  attack phrases and encoded payloads, plus Claude Haiku judging each chunk in context (10 per call, 4 calls in
+  parallel). **The AI layer has the final say**, so normal sentences that merely resemble an attack are not removed.
+  Flagged sections get a risk level (🔴 HIGH / 🟠 MEDIUM / 🟡 LOW). You choose which levels to remove (default:
+  HIGH), and results are cached per file.
 - **Scanned PDF support (OCR).** Image-only pages are transcribed automatically, results are cached, and a
   per-file page limit prevents surprise costs.
 - **Multi-document answers.** Ask across several PDFs. Each fact is cited to its own file, so differences between documents stay visible.
@@ -306,9 +307,10 @@ extend and maintain.
 pytest -v
 ```
 
-46 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
-injection scanner (attack phrases that must be caught, normal text that must not be, batching, caching, and
-fallback to rules when the AI layer is unavailable), and the subscription connector (request format, friendly
+58 tests cover PDF loading, chunking, refusal detection, JSON parsing of model output, the trust-score maths, the
+injection scanner (attack phrases that must be caught, real-world false alarms that must not be, the AI layer's
+final say, batching, caching, progress reporting, and a single failed batch not disabling the AI layer), and the
+subscription connector (request format, friendly
 errors, retry with backoff). The suite makes **no API calls** (the LLM is replaced by a fake
 where needed), so it runs free in about a second and on every push via GitHub Actions.
 
@@ -346,7 +348,8 @@ a per-file OCR page limit, sensible `max_tokens`, and a live API-call counter in
   2. **At answer time:** all document text is wrapped in explicit delimiters and treated as **untrusted data** in
      every prompt (answering, fact-checking, OCR and scanning), so anything that slips past the scanner is still not obeyed.
   3. **After answering:** the fact-checker flags any claim that isn't supported by the real documents.
-- If the AI scan is unavailable (e.g. a rate limit), the free rule-based layer still runs and the report says so.
+- Scan batches fail independently: if the AI can't check some sections (e.g. a temporary error), the free
+  rule-based layer covers them, the report says how many sections the AI checked, and a retry re-checks only those.
 
 ---
 

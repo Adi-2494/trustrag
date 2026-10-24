@@ -15,5 +15,8 @@ venv/
 # Test cache
 .pytest_cache/
 
+# Personal interview notes (not part of the product)
+interview_prep/
+
 # macOS junk
 .DS_Store
