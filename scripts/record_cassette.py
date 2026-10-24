@@ -6,12 +6,14 @@ Record real Claude responses for the replay integration test (tests/test_integra
 Re-run this after changing a prompt; commit the updated tests/cassettes/pipeline.json.
 """
 
+import hashlib
 import os
 import pathlib
 import tempfile
 
 os.environ["CHROMA_DIR"] = tempfile.mkdtemp(prefix="trustrag-record-")
 
+from src import config, state
 from src.llm import call_claude
 from src.service import TrustRAGService
 from tests.recording import RecordingLLM
@@ -30,7 +32,12 @@ def main() -> None:
         print(
             f"Q: {question}\nA: {answer['answer'][:100]}  (trust: {answer['verification'] and answer['verification']['trust_score']})"
         )
-    recorder.save(CASSETTE)
+    # OCR results, keyed exactly as the app's OCR cache keys them (prompt version : file hash : page).
+    ocr_keys = []
+    for name in DOCUMENTS:
+        file_hash = hashlib.sha256(pathlib.Path("sample_docs", name).read_bytes()).hexdigest()
+        ocr_keys += [f"{config.PROMPT_VERSIONS['ocr']}:{file_hash}:{page}" for page in range(1, 20)]
+    recorder.save(CASSETTE, state.cache_get_many("ocr", ocr_keys))
     print(f"Recorded {len(recorder.responses)} responses to {CASSETTE}")
 
 

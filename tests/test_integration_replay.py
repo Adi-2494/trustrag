@@ -9,7 +9,7 @@ import pathlib
 
 import pytest
 
-from src import config, vectorstore
+from src import config, state, vectorstore
 from src.service import TrustRAGService
 from tests.recording import ReplayLLM
 
@@ -33,6 +33,7 @@ def service(monkeypatch, tmp_path):
     monkeypatch.setattr(vectorstore, "_client", None)
     monkeypatch.setattr(vectorstore, "_collections", {})
     replay = ReplayLLM(CASSETTE)
+    state.cache_set_many("ocr", replay.ocr_cache)  # recorded OCR results, independent of image bytes
     return TrustRAGService(llm=replay), replay
 
 

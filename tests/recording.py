@@ -5,7 +5,9 @@ Responses are keyed by what makes them unique, not by the exact prompt bytes, so
 between machines (for example the order of equally-ranked search results) don't break the replay:
 - answer:  the question;            verify: the answer being checked;
 - scan:    the chunk texts in the batch (the random tag names are ignored);
-- ocr:     the page image;          other:  the whole prompt.
+- other:   the whole prompt.
+OCR is not replayed through the client at all: rendered page images differ by a few bytes between platforms,
+so the recorded OCR *results* are seeded into the app's OCR cache instead (keyed by file hash and page).
 """
 
 import hashlib
@@ -54,14 +56,18 @@ class RecordingLLM:
         self.responses[response_key(purpose, prompt)] = reply
         return reply
 
-    def save(self, path: pathlib.Path) -> None:
+    def save(self, path: pathlib.Path, ocr_cache: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.responses, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        responses = {k: v for k, v in self.responses.items() if not k.startswith("ocr:")}
+        data = {"responses": responses, "ocr_cache": ocr_cache}
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 class ReplayLLM:
     def __init__(self, path: pathlib.Path) -> None:
-        self.responses: dict[str, str] = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.responses: dict[str, str] = data["responses"]
+        self.ocr_cache: dict[str, Any] = data["ocr_cache"]
         self.used: set[str] = set()
 
     def __call__(

@@ -12,8 +12,13 @@ __pycache__/
 venv/
 .venv/
 
-# Test cache
+# Test and tool caches
 .pytest_cache/
+.coverage
+coverage.md
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 
 # Personal interview notes (not part of the product)
 interview_prep/
