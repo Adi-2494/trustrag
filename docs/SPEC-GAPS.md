@@ -9,7 +9,7 @@ used until the human decides. New gaps get the next number. Resolved gaps keep t
 | 002 | P5–P8 | Roadmap items had no acceptance criteria | Draft criteria in SPEC.md; each phase plan needs human approval before tests are written | open |
 | 003 | P6 | Account method not chosen (local passwords, magic link, or SSO-only) | Build nothing account-related until an ADR is approved; keep shared password / API key | open |
 | 004 | P6 | Retention for persistent workspaces undefined | Anonymous: keep 24 h. Account workspaces: never auto-deleted; deletion only by the owner | open |
-| 005 | P5 | Which public benchmark, and is its licence compatible? | Download nothing until the human approves a dataset and its licence | open |
+| 005 | P5 | Which public benchmark, and is its licence compatible? | Decided: Qasper (CC BY 4.0, credit it in README). Use 50 papers. Score retrieval by evidence paragraph. Unanswerable questions test refusals. | resolved |
 | 006 | P5 | Where the eval trend "dashboard" lives | Static Markdown report in `eval/results/`, no hosted service | open |
 | 007 | P8 | Cloud provider and budget unknown | Provider-neutral artefacts only (Dockerfile, compose, docs); no cloud resources created | open |
 | 008 | P8 | SSO provider unknown | No SSO code until chosen; design keeps auth behind one interface in P6 | open |
