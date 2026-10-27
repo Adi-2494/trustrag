@@ -25,3 +25,4 @@ interview_prep/
 
 # macOS junk
 .DS_Store
+.claude/settings.local.json
