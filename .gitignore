@@ -26,3 +26,6 @@ interview_prep/
 # macOS junk
 .DS_Store
 .claude/settings.local.json
+
+# Qasper subset (CC BY 4.0 third-party text): never commit or ship
+**/subset.json

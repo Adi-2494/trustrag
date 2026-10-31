@@ -1,5 +1,6 @@
 """Pure scoring functions for the evaluation suite (no I/O, no model calls), so they can be unit-tested."""
 
+import difflib
 import re
 
 
@@ -48,3 +49,20 @@ def classification_metrics(predicted: list[bool], actual: list[bool]) -> dict:
         "fn": fn,
         "tn": tn,
     }
+
+
+def evidence_hit(chunk_text: str, paragraph: str, min_chars: int = 200) -> bool:
+    """
+    True if a retrieved chunk holds (part of) a gold evidence paragraph.
+
+    After `norm()`, the chunk hits when it contains the whole paragraph, or when the longest run of text they share is
+    at least min(len(paragraph), min_chars) characters. 200 is above the 150-character chunk overlap, so a chunk that
+    only repeats the overlap tail of a neighbour does not count (P5, SPEC-GAP-020).
+    """
+    chunk, para = norm(chunk_text), norm(paragraph)
+    if not para:
+        return False
+    if para in chunk:
+        return True
+    matcher = difflib.SequenceMatcher(None, chunk, para, autojunk=False)
+    return matcher.find_longest_match(0, len(chunk), 0, len(para)).size >= min(len(para), min_chars)

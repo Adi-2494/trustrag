@@ -9,6 +9,7 @@ Results are written to eval/results/results.json and eval/results/RESULTS.md.
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import subprocess
@@ -16,12 +17,17 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
 
 # Isolate the evaluation from the user's real data and app limits BEFORE the app modules read their config.
 _TMP = tempfile.mkdtemp(prefix="trustrag-eval-")
 os.environ["CHROMA_DIR"] = os.path.join(_TMP, "chroma")
 os.environ.setdefault("MAX_CALLS_PER_HOUR", "5000")
+# ChromaDB anonymized telemetry off for the eval process only, before chromadb is imported (SPEC-GAP-027).
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
+from eval import history, qasper, trend  # noqa: E402
 from eval.corpus import CORPUS_DIR, DOCS, QA_FILE  # noqa: E402
 from eval.injection_data import SAMPLES  # noqa: E402
 from eval.metrics import auroc, cites, classification_metrics, corrupt, has_keys, norm  # noqa: E402
@@ -336,7 +342,40 @@ def write_markdown(results: dict) -> str:
                 m = inj[key]["removed" if "removed" in name else "flagged"]
                 lines.append(f"| {name} | {pct(m['precision'])} | {pct(m['recall'])} | {pct(m['false_alarm_rate'])} |")
         lines.append("")
+    if "public_benchmark" in results:
+        lines += public_benchmark_lines(results["public_benchmark"])
     return "\n".join(lines)
+
+
+def public_benchmark_lines(block: dict[str, Any]) -> list[str]:
+    """Qasper section, appended after every existing section so earlier output stays byte-identical."""
+    if block.get("status") == "error":
+        return ["## Public benchmark (Qasper)", "", "Error: the benchmark step failed; see the console output.", ""]
+    if block.get("status") != "ok":
+        return ["## Public benchmark (Qasper)", "", f"Skipped: {block.get('skipped_reason', 'not run')}.", ""]
+    r = block["retrieval"]
+    mrr = "–" if r["mrr"] is None else f"{r['mrr']:.2f}"
+    lines = [
+        f"## Public benchmark: {block['dataset']} {block['version']} ({block['split']} split, {block['licence']})",
+        "",
+        f"{block['papers']} papers; one index per paper; default retrieval settings ({r['mode']}, top-{r['top_k']}).",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Answerable questions scored | {r['questions']} |",
+        f"| Recall@{r['top_k']} (evidence paragraph in top-{r['top_k']}) | {pct(r['recall_at_k'])} |",
+        f"| MRR | {mrr} |",
+        f"| Unanswerable questions | {block['unanswerable_questions']} |",
+    ]
+    if "answers" in block:
+        a = block["answers"]
+        lines += [
+            f"| Correct refusals (unanswerable) | {pct(a['correct_refusal_rate'])} |",
+            f"| False refusals (answerable) | {pct(a['false_refusal_rate'])} |",
+        ]
+    excluded = ", ".join(f"{k} {v}" for k, v in block["excluded_questions"].items())
+    lines += ["", f"Excluded questions: {excluded}. Rejected records: {block['rejected_records']}.", ""]
+    return lines
 
 
 def rebuild_report() -> None:
@@ -362,6 +401,37 @@ def rebuild_report() -> None:
     print(markdown)
 
 
+def git_dirty() -> bool:
+    done = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=False)
+    return bool(done.stdout.strip())
+
+
+def record_history(results: dict[str, Any], dirty: bool) -> None:
+    """Append one history line for this run and regenerate TRENDS.md."""
+    with open(QA_FILE, "rb") as f:
+        datasets = {"self_authored": hashlib.sha256(f.read()).hexdigest()}
+    block = results.get("public_benchmark", {})
+    if block.get("status") == "ok":
+        datasets["qasper"] = block["subset_sha256"]
+    entry = history.entry_from_results(results, commit_dirty=dirty, datasets=datasets)
+    history.append_entry(history.HISTORY_PATH, entry)
+    if trend.main([]) != 0:
+        print("warning: TRENDS.md was not regenerated.", file=sys.stderr)
+
+
+def preflight_qasper() -> tuple[dict[str, Any], Path]:
+    """Load the manifest, resolve the data dir and verify an existing subset now, so a broken or tampered benchmark
+    stops the run before any Claude call (a missing subset is fine: the benchmark is then recorded as skipped)."""
+    try:
+        manifest = qasper.load_manifest()
+        subset_path = qasper.resolve_data_dir() / qasper.SUBSET_NAME
+        if manifest.get("subset_sha256") is not None and subset_path.is_file():
+            qasper.load_benchmark(subset_path, manifest)
+    except (qasper.QasperDataError, OSError) as exc:
+        sys.exit(f"Qasper benchmark failed: {exc}")
+    return manifest, subset_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the TrustRAG evaluation suite.")
     parser.add_argument("--report-only", action="store_true", help="Rebuild RESULTS.md from results.json (no runs).")
@@ -379,8 +449,10 @@ def main() -> None:
     if use_llm and llm.missing_key_message():
         sys.exit(llm.missing_key_message())
 
+    manifest, subset_path = preflight_qasper()  # fail fast, before any paid suite and before results are written
     questions = load_questions()
     pages = load_corpus_pages()
+    dirty = git_dirty()  # before this run writes its own result files
     commit = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=False
     ).stdout.strip()
@@ -417,6 +489,19 @@ def main() -> None:
 
     print("Prompt-injection benchmark ...")
     results["injection"] = eval_injection(use_ai=use_llm)
+
+    print("Public benchmark (Qasper) ...")
+    qasper_failure: str | None = None
+    try:
+        results["public_benchmark"] = qasper.run_public_benchmark(
+            STORE,
+            subset_path=subset_path,
+            manifest=manifest,
+            suite=args.suite,
+        )
+    except Exception as exc:  # paid suites already ran: keep their results, record a fixed reason (no text, no paths)
+        qasper_failure = type(exc).__name__
+        results["public_benchmark"] = {"status": "error", "reason": "The Qasper benchmark step failed."}
     results["claude_calls"] = llm.get_call_count()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -427,7 +512,12 @@ def main() -> None:
     with open(os.path.join(RESULTS_DIR, "RESULTS.md"), "w", encoding="utf-8") as f:
         f.write(markdown.rstrip("\n") + "\n")
     print(markdown)
+    record_history(results, dirty)
     print(f"\nClaude calls made: {results['claude_calls']}. Full results: eval/results/results.json")
+    if qasper_failure is not None:
+        sys.exit(
+            f"Qasper benchmark failed ({qasper_failure}). Other results were saved; see the error status in RESULTS.md."
+        )
 
 
 if __name__ == "__main__":
