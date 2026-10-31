@@ -1,6 +1,6 @@
 # P5 plan: public benchmark evaluation and eval trend report
 
-Status: **DRAFT, awaiting human approval** (CLAUDE.md section 5, step 1). No tests or code are written until it is approved.
+Status: **APPROVED by the human on 2026-10-31** (CLAUDE.md section 5, step 1). ADRs 0009 and 0010 accepted; SPEC-GAPs 016–029 resolved with their conservative defaults.
 
 Sources read for this plan: `CLAUDE.md`, `docs/SPEC.md` (section 1 B1–B9, P5), `docs/SPEC-GAPS.md`, `docs/adr/0001`–`0008`,
 `ARCHITECTURE.md`, `THREAT_MODEL.md`, `README.md` ("Measured, not claimed", "Known limitations"), `Makefile`,

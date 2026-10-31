@@ -1,6 +1,6 @@
 # 0009 - Public benchmark data: downloaded once, hash-verified, JSON only, never vendored
 
-**Status:** Proposed (P5; needs human approval)
+**Status:** Accepted (P5; approved by the human)
 
 ## Context
 P5 adds a public document-QA benchmark so quality is measured on text the author did not write (SPEC P5).

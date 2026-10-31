@@ -1,6 +1,6 @@
 # 0010 - Evaluation history as append-only JSON Lines, with a static Markdown trend report
 
-**Status:** Proposed (P5; needs human approval)
+**Status:** Accepted (P5; approved by the human)
 
 ## Context
 `eval/run_eval.py` overwrites `eval/results/results.json` and `RESULTS.md` on every run, so there is no record of
