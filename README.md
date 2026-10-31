@@ -40,7 +40,10 @@ Built for teams that need answers they can **defend**: HR and policy documents, 
 
 `make eval` runs a ground-truth evaluation: 5 policy documents with known facts on known pages (including a
 distractor document with conflicting numbers), 71 questions, and a labelled prompt-injection benchmark.
-Full results and per-question details: [`eval/results/RESULTS.md`](eval/results/RESULTS.md).
+Full results and per-question details: [`eval/results/RESULTS.md`](eval/results/RESULTS.md). The answer, trust and
+AI-scanner figures come from the last full `make eval` run (commit bf3c288, 2026-10-24); `make eval-free` rewrites
+`RESULTS.md` without those sections (SPEC-GAP-028). The run record is in
+[`eval/results/history.jsonl`](eval/results/history.jsonl) and [`eval/results/TRENDS.md`](eval/results/TRENDS.md).
 
 | Metric | Result |
 |---|---|
@@ -50,12 +53,25 @@ Full results and per-question details: [`eval/results/RESULTS.md`](eval/results/
 | Trust score: correct answers vs deliberately falsified answers | **99% vs 5%** (AUROC 1.0; no falsified answer scored green) |
 | Injection benchmark (30 attacks in 12 styles, 30 benign incl. security writing) | **100% removed, 0% false removals** (rules alone: 67% recall) |
 | Median time per question (answer + fact-check) | **6.6 s** |
+| Public benchmark: Qasper retrieval recall@4 / MRR (138 answerable questions, 50 papers) | **53% / 0.36** |
 
 Design choices come from the same evaluation - for example hybrid search over semantic-only (MRR 0.95 → 0.97),
 800-character chunks over 500 (which cut facts in half), and keeping heading-aware chunking *off* because it
 didn't help on this corpus ([ADR 0006](docs/adr/0006-hybrid-retrieval-fixed-chunks-rerank-off.md)).
 
-> The corpus and benchmark were written for this project, so these numbers show the system works as designed on
+**Public benchmark.** The Qasper row uses [Qasper](https://allenai.org/data/qasper) v0.3 (dev split, 50 papers,
+licence CC BY 4.0), a dataset of information-seeking questions written by readers of NLP papers. Credit: Dasigi et al.
+2021, *A Dataset of Information-Seeking Questions and Answers Anchored in Research Papers*. Recall counts a
+question as found when a top-4 hybrid-search chunk contains the annotated evidence paragraph, or shares a common
+substring with it of at least 200 characters (or the whole paragraph, if shorter); 9 unanswerable
+questions are kept for refusal checks (a `make eval` metric), and 17 questions are excluded (10 mixed answerability,
+6 figure or table evidence only, 1 without evidence). It is much lower than the 100% above, as expected: these
+questions were not written by the project author, the papers are long and technical, and the evidence is exact
+paragraphs rather than a fact on a page. Run it with `make eval-free`; the data is not in the repository
+(`make eval-download-qasper`, a one-time download that is checked against a pinned SHA-256), and `make eval-trend`
+rebuilds [`eval/results/TRENDS.md`](eval/results/TRENDS.md) from the run history.
+
+> The self-authored corpus and injection benchmark were written for this project, so these numbers show the system works as designed on
 > realistic policy text - not that it scores 100% on any document. See [Known limitations](#-known-limitations).
 
 ---
@@ -335,8 +351,14 @@ defended against - is in [`THREAT_MODEL.md`](THREAT_MODEL.md). To report a vulne
 
 ## ⚠️ Known limitations
 
-- **The evaluation is self-authored.** The corpus and injection benchmark were written for this project; real-world
-  PDFs (complex layouts, poor scans, many headings) will score lower. Treat the numbers as a regression baseline.
+- **The main evaluation is self-authored.** The corpus and injection benchmark were written for this project;
+  real-world PDFs (complex layouts, poor scans, many headings) will score lower. Treat those numbers as a regression
+  baseline. The public Qasper benchmark is a second, independent check, but it covers only one domain (NLP papers),
+  English. It scores retrieval in `make eval-free` and, under `make eval` only, refusal rates; no answer correctness,
+  citation or trust score is scored on it, and it is not run by CI (the data is downloaded by hand).
+- **Qasper recall is approximate.** Recall uses containment or a 200-character common substring, not a judgement of
+  whether the chunk answers the question, so it can over- or under-count. Questions with mixed or figure/table-only evidence are excluded, and its papers
+  are not scanned for prompt injection.
 - **The trust score measures support, not truth.** If a document states something false, a faithful answer citing
   it will score high.
 - **No filter catches every prompt injection.** The scanner, prompt escaping and fact-check overlap so that a single
