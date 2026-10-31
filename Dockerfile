@@ -9,7 +9,7 @@
 
 # Base images are pinned by digest (an exact, tamper-proof fingerprint of the multi-arch image), not just by tag.
 # Stage 1: official Node.js image, used only to borrow its small, ready-made Node binary.
-FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d AS node
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS node
 
 # Stage 2: the actual app image. Both stages are Debian "bookworm", so the Node binary is compatible.
 FROM python:3.11-slim-bookworm@sha256:f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf
