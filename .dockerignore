@@ -19,3 +19,6 @@ eval/
 scripts/
 requirements-dev.lock
 .pre-commit-config.yaml
+
+# Qasper subset (CC BY 4.0 third-party text): never ship in build context
+**/subset.json

@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Public benchmark (P5):** retrieval recall@4 and MRR on a 50-paper subset of Qasper v0.3 dev (CC BY 4.0,
+  Dasigi et al. 2021), reported in `eval/results/` and the README. The subset is downloaded on demand
+  (`make eval-download-qasper`), pinned by SHA-256 and checked on every load; without it the suite reports
+  `skipped`. Measured: 138 answerable questions, recall@4 53%, MRR 0.36.
+- **Run history and trends:** every eval run appends a line to `eval/results/history.jsonl`;
+  `make eval-trend` writes `eval/results/TRENDS.md` (last 10 runs per metric).
+- **Threat model:** rows 20-25 for the benchmark download and data path (ADRs 0009 and 0010). Hardening: decompressed-size
+  cap before tar parsing, identity-based data-directory check, charset-validated manifest, fail-fast benchmark checks.
+
 ## [1.0.0] - 2026-10-24
 
 ### Added

@@ -1,6 +1,6 @@
 # TrustRAG evaluation results
 
-Run: 2026-10-24T21:33:57 · commit `bf3c288` · answer model `claude-sonnet-5-5` · checker model `claude-haiku-5-5`
+Run: 2026-10-31T20:48:21 · commit `5fb45ca` · answer model `claude-sonnet-5-5` · checker model `claude-haiku-5-5`
 
 ## Retrieval (default settings: hybrid, fixed chunks of 800)
 
@@ -25,39 +25,21 @@ Run: 2026-10-24T21:33:57 · commit `bf3c288` · answer model `claude-sonnet-5-5`
 | 1200 | section | semantic | 100% | 0.97 |
 | 1200 | section | hybrid | 100% | 0.97 |
 
-## Reranking (default chunking)
-
-| Retrieval | Recall@4 | MRR |
-|---|---|---|
-| semantic | 100% | 0.95 |
-| hybrid | 100% | 0.97 |
-| hybrid+rerank | 100% | 0.99 |
-
-## Answer quality
-
-| Metric | Value |
-|---|---|
-| Answer accuracy (56 answerable questions) | 100% |
-| Cites the correct file and page | 100% |
-| Correct refusals (15 unanswerable questions) | 93% |
-| Unanswerable questions answered with unsupported claims (hallucinations) | 0% |
-| False refusals (answerable questions refused) | 0% |
-| Median time per question (answer + fact-check) | 6.6s |
-
-## Trust score vs ground truth
-
-| Metric | Value |
-|---|---|
-| Mean trust, correct answers | 99.2% |
-| Mean trust, deliberately falsified answers | 4.7% |
-| AUROC (correct vs falsified) | 1.0 |
-| Falsified answers wrongly scored green (≥80%) | 0% |
-
 ## Prompt-injection benchmark (30 attacks, 30 benign)
 
 | Layer | Precision | Recall | False-alarm rate |
 |---|---|---|---|
 | Rules only (flagged) | 91% | 67% | 7% |
-| AI only (flagged) | 100% | 100% | 0% |
-| Rules + AI (flagged) | 100% | 100% | 0% |
-| Rules + AI (removed by default policy) | 100% | 100% | 0% |
+
+## Public benchmark: Qasper v0.3 (dev split, CC BY 4.0)
+
+50 papers; one index per paper; default retrieval settings (hybrid, top-4).
+
+| Metric | Value |
+|---|---|
+| Answerable questions scored | 138 |
+| Recall@4 (evidence paragraph in top-4) | 53% |
+| MRR | 0.36 |
+| Unanswerable questions | 9 |
+
+Excluded questions: mixed_answerability 10, figure_or_table_only 6, no_evidence 1. Rejected records: 0.

@@ -1,0 +1,502 @@
+{
+ "P001": {
+  "title": "Fast Widget Learning",
+  "abstract": "We study how quickly a widget can be learned from few examples.",
+  "full_text": [
+   {
+    "section_name": "Introduction",
+    "paragraphs": [
+     "Widgets are everywhere. Many annotators and many corpus builders ask each time how labelled data is gathered for widgets, and how many papers describe it."
+    ]
+   },
+   {
+    "section_name": "Background",
+    "paragraphs": [
+     "Three annotators labelled each sample of the corpus and disagreements were settled by a fourth annotator."
+    ]
+   },
+   {
+    "section_name": "Method",
+    "paragraphs": [
+     "We use a plain pipeline.",
+     "The widget encoder is trained with the Lamport optimizer, a learning rate of 0.01 and a batch size of 32."
+    ]
+   },
+   {
+    "section_name": "Results",
+    "paragraphs": [
+     "Accuracy rose steadily with more examples. Gains flattened after one thousand samples."
+    ]
+   },
+   {
+    "section_name": "Discussion",
+    "paragraphs": [
+     "Limits include small samples and noisy inputs."
+    ]
+   },
+   {
+    "section_name": "Conclusion",
+    "paragraphs": [
+     "Fast learning of widgets is feasible with modest compute."
+    ]
+   }
+  ],
+  "qas": [
+   {
+    "question": "Which optimizer trains the widget encoder?",
+    "question_id": "P001-q1",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "Lamport"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "The widget encoder is trained with the Lamport optimizer, a learning rate of 0.01 and a batch size of 32."
+       ],
+       "highlighted_evidence": [
+        "The widget encoder is trained with the Lamport optimizer, a learning rate of 0.01 and a batch size of 32."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "How many annotators labelled each sample?",
+    "question_id": "P001-q2",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "Three"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "Three annotators labelled each sample of the corpus and disagreements were settled by a fourth annotator."
+       ],
+       "highlighted_evidence": [
+        "Three annotators labelled each sample of the corpus and disagreements were settled by a fourth annotator."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "What is the price of a widget?",
+    "question_id": "P001-q3",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": true,
+       "extractive_spans": [],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "Does the model use pretraining?",
+    "question_id": "P001-q4",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": true,
+       "extractive_spans": [],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     },
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "yes"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "We use a plain pipeline."
+       ],
+       "highlighted_evidence": [
+        "We use a plain pipeline."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   }
+  ]
+ },
+ "P002": {
+  "title": "Tagging Tiny Texts",
+  "abstract": "A tagger for very short texts.",
+  "full_text": [
+   {
+    "section_name": "Model",
+    "paragraphs": [
+     "Dropout of 0.3 was applied to every hidden layer of the tagger.",
+     "Embeddings are initialised randomly."
+    ]
+   },
+   {
+    "section_name": "Data",
+    "paragraphs": [
+     "The texts come from public message boards."
+    ]
+   }
+  ],
+  "qas": [
+   {
+    "question": "What dropout was applied to hidden layers of the tagger?",
+    "question_id": "P002-q1",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "0.3"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "Dropout of 0.3 was applied to every hidden layer of the tagger."
+       ],
+       "highlighted_evidence": [
+        "Dropout of 0.3 was applied to every hidden layer of the tagger."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "How large is the vocabulary?",
+    "question_id": "P002-q2",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": true,
+       "extractive_spans": [],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "What are the results in the table?",
+    "question_id": "P002-q3",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "table"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "FLOAT SELECTED: Table 1: Results per language."
+       ],
+       "highlighted_evidence": [
+        "FLOAT SELECTED: Table 1: Results per language."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "Who funded the work?",
+    "question_id": "P002-q4",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "nobody"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   }
+  ]
+ },
+ "P003": {
+  "title": "CANARY_TITLE_7731 <script>alert(1)</script> [click](http://evil.example)",
+  "abstract": "Zero\u200bwidth and soft\u00adhyphen text CANARY_ABSTRACT_5521.",
+  "full_text": [
+   {
+    "section_name": "Alpha",
+    "paragraphs": [
+     "alpha beta gamma delta epsilon zeta eta theta scores computed final"
+    ]
+   },
+   {
+    "section_name": "Beta",
+    "paragraphs": [
+     "alpha beta gamma delta epsilon zeta eta theta scores computed final"
+    ]
+   },
+   {
+    "section_name": "Gamma",
+    "paragraphs": [
+     "alpha beta gamma delta epsilon zeta eta theta scores computed final"
+    ]
+   },
+   {
+    "section_name": "Delta",
+    "paragraphs": [
+     "alpha beta gamma delta epsilon zeta eta theta scores computed final"
+    ]
+   },
+   {
+    "section_name": "Scoring",
+    "paragraphs": [
+     "Final scores are computed by the Zorg\u200bmetric with soft\u00adhyphenated tokens and an offset of 7."
+    ]
+   },
+   {
+    "section_name": "Notes",
+    "paragraphs": [
+     "Nothing else here."
+    ]
+   }
+  ],
+  "qas": [
+   {
+    "question": "Which alpha beta gamma delta epsilon zeta eta theta scores computed final? <script>CANARY_Q_9913</script>",
+    "question_id": "P003-q1",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "Zorg"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "Final scores are computed by the Zorg\u200bmetric with soft\u00adhyphenated tokens and an offset of 7."
+       ],
+       "highlighted_evidence": [
+        "Final scores are computed by the Zorg\u200bmetric with soft\u00adhyphenated tokens and an offset of 7."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   }
+  ]
+ },
+ "../evil": {
+  "title": "Tagging Tiny Texts",
+  "abstract": "A tagger for very short texts.",
+  "full_text": [
+   {
+    "section_name": "Model",
+    "paragraphs": [
+     "Dropout of 0.3 was applied to every hidden layer of the tagger.",
+     "Embeddings are initialised randomly."
+    ]
+   },
+   {
+    "section_name": "Data",
+    "paragraphs": [
+     "The texts come from public message boards."
+    ]
+   }
+  ],
+  "qas": [
+   {
+    "question": "What dropout was applied to hidden layers of the tagger?",
+    "question_id": "P002-q1",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "0.3"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "Dropout of 0.3 was applied to every hidden layer of the tagger."
+       ],
+       "highlighted_evidence": [
+        "Dropout of 0.3 was applied to every hidden layer of the tagger."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "How large is the vocabulary?",
+    "question_id": "P002-q2",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": true,
+       "extractive_spans": [],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "What are the results in the table?",
+    "question_id": "P002-q3",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "table"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [
+        "FLOAT SELECTED: Table 1: Results per language."
+       ],
+       "highlighted_evidence": [
+        "FLOAT SELECTED: Table 1: Results per language."
+       ]
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   },
+   {
+    "question": "Who funded the work?",
+    "question_id": "P002-q4",
+    "nlp_background": "",
+    "topic_background": "",
+    "paper_read": "",
+    "search_query": "",
+    "question_writer": "w",
+    "answers": [
+     {
+      "answer": {
+       "unanswerable": false,
+       "extractive_spans": [
+        "nobody"
+       ],
+       "yes_no": null,
+       "free_form_answer": "",
+       "evidence": [],
+       "highlighted_evidence": []
+      },
+      "annotation_id": "a",
+      "worker_id": "w"
+     }
+    ]
+   }
+  ]
+ },
+ "P004": {
+  "title": "Broken",
+  "abstract": "x",
+  "full_text": "not a list",
+  "qas": []
+ }
+}
