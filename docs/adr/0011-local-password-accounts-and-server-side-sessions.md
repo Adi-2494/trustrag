@@ -1,8 +1,8 @@
 # 0011 - Local password accounts with server-side sessions, behind one `Authenticator` interface
 
-**Status:** Proposed (P6). The account method was decided by the human on 2026-11-01 (SPEC-GAP-003). This record
-describes how it is built and still needs approval. It was revised on 2026-11-02 after the security review of the
-plan (`docs/phases/p6-plan.md` section 9).
+**Status:** Accepted (P6; approved by the human, 2026-11-04). The account method was decided by the human on
+2026-11-01 (SPEC-GAP-003). This record describes how it is built. It was revised on 2026-11-02 after the security
+review of the plan (`docs/phases/p6-plan.md` section 9).
 
 ## Context
 P6 lets users keep their documents across sessions without sharing a password (SPEC P6). On 2026-11-01 the human

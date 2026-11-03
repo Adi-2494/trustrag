@@ -1,6 +1,6 @@
 # 0012 - Workspace ownership in SQLite, distinct account collections, retention by owner, anonymous workspaces unchanged
 
-**Status:** Proposed (P6). Revised on 2026-11-02 after the plan's security review (`docs/phases/p6-plan.md`
+**Status:** Accepted (P6; approved by the human, 2026-11-04). Revised on 2026-11-02 after the plan's security review (`docs/phases/p6-plan.md`
 section 9). It amends the scope of ADR 0005: the state database now also holds durable data. It extends the
 `VectorStore` interface from ADR 0003 with two backward-compatible keyword parameters.
 

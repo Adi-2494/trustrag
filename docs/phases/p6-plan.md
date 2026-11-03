@@ -1,8 +1,9 @@
 # P6 plan: user accounts and persistent workspaces
 
-Status: **DRAFT — awaiting human approval** (CLAUDE.md section 5, step 1). ADRs 0011 and 0012 are `Proposed`;
-SPEC-GAPs 031–056 are open with conservative defaults. Revised 2026-11-02 to fold in the security-reviewer's review
-of the plan (section 9); nothing has been approved yet.
+Status: **DRAFT — awaiting human approval** (CLAUDE.md section 5, step 1). Revised 2026-11-02 to fold in the
+security-reviewer's review of the plan (section 9). On 2026-11-04 the human approved ADRs 0011 and 0012 (now
+`Accepted`, so scrypt from the standard library, no new dependency) and accepted the conservative defaults of
+SPEC-GAPs 030–056. The plan itself has not yet been explicitly approved.
 
 Human decisions already recorded (2026-11-01):
 - SPEC-GAP-003 → local passwords (username + password, slow hash, rate-limited timing-safe login, server-side
