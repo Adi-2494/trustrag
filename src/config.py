@@ -116,6 +116,26 @@ WORKSPACE_MAX_AGE_HOURS = 24
 CLAUDE_TOKEN_FILE = SETTINGS.claude_token_file  # mounted secret keeps the token out of `docker inspect`
 LOG_LEVEL = SETTINGS.log_level
 
+# Accounts (P6, ADR 0011 / 0012). Settings-backed values are operator-tunable; the rest are fixed by the ADR.
+ACCOUNTS_ENABLED = SETTINGS.accounts_enabled
+SESSION_IDLE_MINUTES = SETTINGS.session_idle_minutes
+SESSION_MAX_HOURS = SETTINGS.session_max_hours
+LOGIN_MAX_FAILURES_PER_USER = SETTINGS.login_max_failures_per_user
+LOGIN_MAX_FAILURES_PER_CLIENT = SETTINGS.login_max_failures_per_client
+LOGIN_WINDOW_MINUTES = SETTINGS.login_window_minutes
+LOGIN_MAX_PER_SECOND = SETTINGS.login_max_per_second  # all clients together
+MAX_WORKSPACES_PER_ACCOUNT = SETTINGS.max_workspaces_per_account
+MAX_SESSIONS_PER_ACCOUNT = SETTINGS.max_sessions_per_account
+SCRYPT_N = 2**17
+SCRYPT_R = 8
+SCRYPT_P = 1
+SCRYPT_MAXMEM = 2**28  # 256 MiB: scrypt needs 128 * N * R = 128 MiB at the parameters above
+KDF_MAX_CONCURRENT = 2  # simultaneous password hashes; more logins get a quick "try again later"
+KDF_WAIT_SECONDS = 5
+LOGIN_BODY_MAX_BYTES = 4096
+PASSWORD_MIN_CHARS = 12
+PASSWORD_MAX_CHARS = 1024
+
 # ---------------------------------------------------------------------------
 # Injection scanner
 # ---------------------------------------------------------------------------

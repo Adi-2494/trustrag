@@ -89,3 +89,23 @@ class AskResult(TypedDict):
     verification: Verification | None
     seconds: float
     request_id: str
+
+
+class Principal(TypedDict):
+    account_id: str  # 32 lowercase hex chars, random; never the username
+    username: str  # canonical form
+
+
+class SessionInfo(TypedDict):
+    token: str  # returned once at login; only sha256(token) is stored
+    username: str
+    expires_at: float  # absolute expiry, epoch seconds
+
+
+class WorkspaceInfo(TypedDict):
+    workspace: str  # "acct-<32 hex>" for account workspaces (opaque to clients)
+    created_at: float
+
+
+class WorkspaceList(TypedDict):
+    workspaces: list[WorkspaceInfo]

@@ -27,3 +27,12 @@ Include what you found, how to reproduce it, and the impact you expect. You can 
   Dependabot proposes updates weekly.
 - **Defaults:** the app and the Docker examples listen on localhost only. Set `APP_PASSWORD` and/or `API_KEY`
   before exposing TrustRAG to a network.
+- **Accounts (optional, `ACCOUNTS_ENABLED`):** accounts are created by the operator only (no sign-up). Passwords are
+  stored as salted scrypt hashes; session tokens are 256-bit, stored only as SHA-256, accepted only in the
+  `Authorization` header and expire after 2 hours idle or 24 hours. Sign-in failures look identical whatever the
+  cause, and are rate limited per username, per client address and globally before any password hashing. The API
+  must run with `--no-proxy-headers` (set in `docker-compose.yml`). The state database directory is owner-only.
+  Users can only reach their own workspaces; anyone else gets "not found". Limits, such as targeted lockout and no
+  MFA, are listed in [`THREAT_MODEL.md`](THREAT_MODEL.md).
+- **Backups:** `chroma_db/` holds vectors and the state database (accounts, sessions). Back it up before upgrading;
+  rolling back to v1.0 hides account workspaces but does not delete them.

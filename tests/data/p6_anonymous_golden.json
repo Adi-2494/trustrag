@@ -1,0 +1,1559 @@
+{
+  "anonymous_flows": [
+    {
+      "body": {
+        "status": "ok"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "health",
+      "request": "GET /health",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "workspace": "<WS>"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "create",
+      "request": "POST /v1/workspaces",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks": 0,
+        "files": []
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_empty",
+      "request": "GET /v1/workspaces/<WS>/documents",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Upload at least one PDF to this workspace first."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_empty_workspace_409",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 409,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": [
+          {
+            "ctx": {
+              "min_length": 1
+            },
+            "input": "",
+            "loc": [
+              "body",
+              "question"
+            ],
+            "msg": "String should have at least 1 character",
+            "type": "string_too_short"
+          }
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_blank_422",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 422,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": [
+          {
+            "ctx": {
+              "max_length": 500
+            },
+            "input": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+            "loc": [
+              "body",
+              "question"
+            ],
+            "msg": "String should have at most 500 characters",
+            "type": "string_too_long"
+          }
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_too_long_422",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 422,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": [
+          {
+            "input": {},
+            "loc": [
+              "body",
+              "question"
+            ],
+            "msg": "Field required",
+            "type": "missing"
+          }
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_missing_body_422",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 422,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks_indexed": 1,
+        "chunks_removed": 0,
+        "file_name": "handbook.pdf",
+        "pages": 1,
+        "report": {
+          "ai_checked": 1,
+          "excluded_risks": [
+            "HIGH"
+          ],
+          "flagged": [],
+          "llm_checked": true,
+          "scanned": 1
+        }
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks_indexed": 1,
+        "chunks_removed": 0,
+        "file_name": "travel.pdf",
+        "pages": 1,
+        "report": {
+          "ai_checked": 1,
+          "excluded_risks": [
+            "HIGH",
+            "LOW",
+            "MEDIUM"
+          ],
+          "flagged": [],
+          "llm_checked": true,
+          "scanned": 1
+        }
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_also_remove",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "'x.pdf' could not be read. It may be damaged or not a real PDF."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_not_a_pdf_422",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 422,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": [
+          {
+            "input": null,
+            "loc": [
+              "body",
+              "file"
+            ],
+            "msg": "Field required",
+            "type": "missing"
+          }
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_no_file_422",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 422,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks": 2,
+        "files": [
+          "handbook.pdf",
+          "travel.pdf"
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_after_upload",
+      "request": "GET /v1/workspaces/<WS>/documents",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "answer": "Employees receive 25 days of paid annual leave [handbook.pdf, p.1].",
+        "chunks": [
+          {
+            "distance": 0.5,
+            "file_name": "handbook.pdf",
+            "id": "handbook.pdf-p1-c0",
+            "page": 1,
+            "text": "Leave policy\nFull-time employees receive 25 days of paid annual leave per year.\nUnused days may be carried over until 31 March."
+          },
+          {
+            "distance": 0.5,
+            "file_name": "travel.pdf",
+            "id": "travel.pdf-p1-c0",
+            "page": 1,
+            "text": "Travel policy\nFlights above 6 hours may be booked in business class."
+          }
+        ],
+        "question": "How much annual leave?",
+        "refused": false,
+        "request_id": "trace-1",
+        "seconds": "<SECONDS>",
+        "verification": {
+          "claims": [
+            {
+              "claim": "Employees receive 25 days of paid annual leave",
+              "file_name": "handbook.pdf",
+              "page": 1,
+              "quote": "25 days of paid annual leave",
+              "quote_found": true,
+              "reason": "",
+              "status": "SUPPORTED"
+            }
+          ],
+          "refused": false,
+          "trust_score": 100.0
+        }
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 200,
+      "x_request_id_echoed": true
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_unknown_hex_404",
+      "request": "GET /v1/workspaces/00000000000000000000000000000000/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_unknown_hex_404",
+      "request": "POST /v1/workspaces/00000000000000000000000000000000/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_unknown_hex_404",
+      "request": "POST /v1/workspaces/00000000000000000000000000000000/questions",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": null,
+      "headers": {},
+      "name": "delete_unknown_hex",
+      "request": "DELETE /v1/workspaces/00000000000000000000000000000000",
+      "status": 204,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_malformed_404",
+      "request": "GET /v1/workspaces/not-a-real-id/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_malformed_404",
+      "request": "POST /v1/workspaces/not-a-real-id/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_malformed_404",
+      "request": "POST /v1/workspaces/not-a-real-id/questions",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": null,
+      "headers": {},
+      "name": "delete_malformed",
+      "request": "DELETE /v1/workspaces/not-a-real-id",
+      "status": 204,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_uppercase_hex_404",
+      "request": "GET /v1/workspaces/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_uppercase_hex_404",
+      "request": "POST /v1/workspaces/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_uppercase_hex_404",
+      "request": "POST /v1/workspaces/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/questions",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": null,
+      "headers": {},
+      "name": "delete_uppercase_hex",
+      "request": "DELETE /v1/workspaces/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "status": 204,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_acct_form_404",
+      "request": "GET /v1/workspaces/acct-abababababababababababababababab/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_acct_form_404",
+      "request": "POST /v1/workspaces/acct-abababababababababababababababab/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_acct_form_404",
+      "request": "POST /v1/workspaces/acct-abababababababababababababababab/questions",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": null,
+      "headers": {},
+      "name": "delete",
+      "request": "DELETE /v1/workspaces/<WS>",
+      "status": 204,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks": 0,
+        "files": []
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_after_delete",
+      "request": "GET /v1/workspaces/<WS>/documents",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Method Not Allowed"
+      },
+      "headers": {
+        "allow": "POST",
+        "content-type": "application/json"
+      },
+      "name": "put_workspaces_405",
+      "request": "PUT /v1/workspaces",
+      "status": 405,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Not Found"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "root_404",
+      "request": "GET /",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "workspace": "<WS>"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "create_for_413",
+      "request": "POST /v1/workspaces",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "The file is larger than 1 MB."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_too_large_413",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 413,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Missing or invalid API key."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "api_key_missing_401",
+      "request": "POST /v1/workspaces",
+      "status": 401,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Missing or invalid API key."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "api_key_wrong_401",
+      "request": "POST /v1/workspaces",
+      "status": 401,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "workspace": "<WS>"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "create_with_api_key",
+      "request": "POST /v1/workspaces",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "status": "ok"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "health_open_with_api_key",
+      "request": "GET /health",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Missing or invalid API key."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "metrics_needs_key_401",
+      "request": "GET /metrics",
+      "status": 401,
+      "x_request_id_echoed": null
+    },
+    {
+      "content_type": "text/plain; charset=utf-8",
+      "name": "metrics",
+      "status": 200
+    }
+  ],
+  "disabled_only": [
+    {
+      "body": {
+        "detail": "Method Not Allowed"
+      },
+      "headers": {
+        "allow": "POST",
+        "content-type": "application/json"
+      },
+      "name": "list_workspaces_405",
+      "request": "GET /v1/workspaces",
+      "status": 405,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Not Found"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "login_404",
+      "request": "POST /v1/auth/login",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Not Found"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "login_get_404",
+      "request": "GET /v1/auth/login",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Not Found"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "logout_404",
+      "request": "POST /v1/auth/logout",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Not Found"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "me_404",
+      "request": "GET /v1/auth/me",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "workspace": "<WS>"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "create_with_garbage_bearer",
+      "request": "POST /v1/workspaces",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "workspace": "<WS>"
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "create",
+      "request": "POST /v1/workspaces",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks": 0,
+        "files": []
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_with_garbage_bearer",
+      "request": "GET /v1/workspaces/<WS>/documents",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks_indexed": 1,
+        "chunks_removed": 0,
+        "file_name": "handbook.pdf",
+        "pages": 1,
+        "report": {
+          "ai_checked": 1,
+          "excluded_risks": [
+            "HIGH"
+          ],
+          "flagged": [],
+          "llm_checked": true,
+          "scanned": 1
+        }
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "upload_with_garbage_bearer",
+      "request": "POST /v1/workspaces/<WS>/documents",
+      "status": 201,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "answer": "Employees receive 25 days of paid annual leave [handbook.pdf, p.1].",
+        "chunks": [
+          {
+            "distance": 0.5,
+            "file_name": "handbook.pdf",
+            "id": "handbook.pdf-p1-c0",
+            "page": 1,
+            "text": "Leave policy\nFull-time employees receive 25 days of paid annual leave per year.\nUnused days may be carried over until 31 March."
+          }
+        ],
+        "question": "annual leave?",
+        "refused": false,
+        "request_id": "<RID>",
+        "seconds": "<SECONDS>",
+        "verification": {
+          "claims": [
+            {
+              "claim": "Employees receive 25 days of paid annual leave",
+              "file_name": "handbook.pdf",
+              "page": 1,
+              "quote": "25 days of paid annual leave",
+              "quote_found": true,
+              "reason": "",
+              "status": "SUPPORTED"
+            }
+          ],
+          "refused": false,
+          "trust_score": 100.0
+        }
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "ask_with_garbage_bearer",
+      "request": "POST /v1/workspaces/<WS>/questions",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "chunks": 1,
+        "files": [
+          "handbook.pdf"
+        ]
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "docs_with_basic_auth",
+      "request": "GET /v1/workspaces/<WS>/documents",
+      "status": 200,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": {
+        "detail": "Workspace not found."
+      },
+      "headers": {
+        "content-type": "application/json"
+      },
+      "name": "acct_with_garbage_bearer_404",
+      "request": "GET /v1/workspaces/acct-abababababababababababababababab/documents",
+      "status": 404,
+      "x_request_id_echoed": null
+    },
+    {
+      "body": null,
+      "headers": {},
+      "name": "delete_with_garbage_bearer",
+      "request": "DELETE /v1/workspaces/<WS>",
+      "status": 204,
+      "x_request_id_echoed": null
+    }
+  ],
+  "openapi": {
+    "components": {
+      "AskResult": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedChunk"
+            },
+            "title": "Chunks",
+            "type": "array"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "boolean"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "refused",
+          "chunks",
+          "verification",
+          "seconds",
+          "request_id"
+        ],
+        "title": "AskResult",
+        "type": "object"
+      },
+      "Body_upload_document_v1_workspaces__workspace__documents_post": {
+        "properties": {
+          "also_remove": {
+            "default": "",
+            "title": "Also Remove",
+            "type": "string"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_document_v1_workspaces__workspace__documents_post",
+        "type": "object"
+      },
+      "Claim": {
+        "properties": {
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "quote_found": {
+            "title": "Quote Found",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SUPPORTED",
+              "PARTIALLY_SUPPORTED",
+              "NOT_SUPPORTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim",
+          "status",
+          "quote",
+          "file_name",
+          "page",
+          "reason",
+          "quote_found"
+        ],
+        "title": "Claim",
+        "type": "object"
+      },
+      "DocumentList": {
+        "properties": {
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files",
+          "chunks"
+        ],
+        "title": "DocumentList",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Question": {
+        "properties": {
+          "question": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "Question",
+        "type": "object"
+      },
+      "RetrievedChunk": {
+        "properties": {
+          "distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "file_name",
+          "page",
+          "distance"
+        ],
+        "title": "RetrievedChunk",
+        "type": "object"
+      },
+      "ScanFinding": {
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Risk",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "file_name",
+          "page",
+          "risk",
+          "rules",
+          "reason",
+          "text"
+        ],
+        "title": "ScanFinding",
+        "type": "object"
+      },
+      "ScanReport": {
+        "properties": {
+          "ai_checked": {
+            "title": "Ai Checked",
+            "type": "integer"
+          },
+          "excluded_risks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Risks",
+            "type": "array"
+          },
+          "flagged": {
+            "items": {
+              "$ref": "#/components/schemas/ScanFinding"
+            },
+            "title": "Flagged",
+            "type": "array"
+          },
+          "llm_checked": {
+            "title": "Llm Checked",
+            "type": "boolean"
+          },
+          "scanned": {
+            "title": "Scanned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scanned",
+          "ai_checked",
+          "flagged",
+          "llm_checked"
+        ],
+        "title": "ScanReport",
+        "type": "object"
+      },
+      "UploadResult": {
+        "properties": {
+          "chunks_indexed": {
+            "title": "Chunks Indexed",
+            "type": "integer"
+          },
+          "chunks_removed": {
+            "title": "Chunks Removed",
+            "type": "integer"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ScanReport"
+          }
+        },
+        "required": [
+          "file_name",
+          "pages",
+          "chunks_indexed",
+          "chunks_removed",
+          "report"
+        ],
+        "title": "UploadResult",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Verification": {
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "refused": {
+            "title": "Refused",
+            "type": "boolean"
+          },
+          "trust_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Score"
+          }
+        },
+        "required": [
+          "refused",
+          "claims",
+          "trust_score"
+        ],
+        "title": "Verification",
+        "type": "object"
+      },
+      "WorkspaceCreated": {
+        "properties": {
+          "workspace": {
+            "title": "Workspace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace"
+        ],
+        "title": "WorkspaceCreated",
+        "type": "object"
+      }
+    },
+    "info": {
+      "description": "Hallucination-aware document Q&A with fact-checking and prompt-injection scanning.",
+      "title": "TrustRAG API",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/health": {
+        "get": {
+          "operationId": "health_health_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "title": "Response Health Health Get",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            }
+          },
+          "summary": "Health"
+        }
+      },
+      "/metrics": {
+        "get": {
+          "operationId": "metrics_metrics_get",
+          "parameters": [
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "text/plain": {
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "Metrics"
+        }
+      },
+      "/v1/workspaces": {
+        "post": {
+          "operationId": "create_workspace_v1_workspaces_post",
+          "parameters": [
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "responses": {
+            "201": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkspaceCreated"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "Create Workspace"
+        }
+      },
+      "/v1/workspaces/{workspace}": {
+        "delete": {
+          "operationId": "delete_workspace_v1_workspaces__workspace__delete",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "workspace",
+              "required": true,
+              "schema": {
+                "title": "Workspace",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "Delete Workspace"
+        }
+      },
+      "/v1/workspaces/{workspace}/documents": {
+        "get": {
+          "operationId": "list_documents_v1_workspaces__workspace__documents_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "workspace",
+              "required": true,
+              "schema": {
+                "title": "Workspace",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DocumentList"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "List Documents"
+        },
+        "post": {
+          "operationId": "upload_document_v1_workspaces__workspace__documents_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "workspace",
+              "required": true,
+              "schema": {
+                "title": "Workspace",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "multipart/form-data": {
+                "schema": {
+                  "$ref": "#/components/schemas/Body_upload_document_v1_workspaces__workspace__documents_post"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UploadResult"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "Upload Document"
+        }
+      },
+      "/v1/workspaces/{workspace}/questions": {
+        "post": {
+          "operationId": "ask_question_v1_workspaces__workspace__questions_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "workspace",
+              "required": true,
+              "schema": {
+                "title": "Workspace",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "x-api-key",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "X-Api-Key"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AskResult"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              },
+              "description": "Validation Error"
+            }
+          },
+          "summary": "Ask Question"
+        }
+      }
+    }
+  }
+}

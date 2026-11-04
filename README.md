@@ -234,7 +234,7 @@ docker compose up --build     # UI → http://localhost:7860 · API docs → htt
 ### 🔌 HTTP API
 
 ```bash
-uvicorn api.main:app --host 127.0.0.1 --port 8000      # interactive docs at http://127.0.0.1:8000/docs
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers   # interactive docs at http://127.0.0.1:8000/docs
 
 WS=$(curl -s -X POST localhost:8000/v1/workspaces | jq -r .workspace)
 curl -s -X POST localhost:8000/v1/workspaces/$WS/documents -F file=@sample_docs/company_handbook.pdf
@@ -248,10 +248,63 @@ curl -s -X POST localhost:8000/v1/workspaces/$WS/questions -H 'Content-Type: app
 | `POST /v1/workspaces/{id}/documents` | Upload, scan and index a PDF → `UploadResult` with the security report |
 | `GET /v1/workspaces/{id}/documents` | List files and chunk count |
 | `POST /v1/workspaces/{id}/questions` | Ask → answer, sources, fact-check, trust score, request ID |
-| `DELETE /v1/workspaces/{id}` | Delete the workspace's documents |
+| `DELETE /v1/workspaces/{id}` | Account workspace: permanently deletes it (its id is retired and never reused). Anonymous workspace: clears its documents |
+| `DELETE /v1/workspaces/{id}/documents` | Remove the workspace's documents but keep the workspace |
+| `POST /v1/auth/login`, `POST /v1/auth/logout`, `GET /v1/auth/me` | Accounts only (`ACCOUNTS_ENABLED=true`): sign in, sign out, current user |
+| `GET /v1/workspaces` | Accounts only: list your own workspaces |
 | `GET /health`, `GET /metrics` | Liveness; Prometheus metrics |
 
 Every response carries an `X-Request-ID` header that matches the request ID in the logs.
+
+Keep `--no-proxy-headers` when you run the API: the app never trusts `X-Forwarded-For`, so a forged header cannot
+buy a client fresh sign-in attempts. (`docker-compose.yml` already passes it.)
+
+### 👤 Accounts (optional)
+
+By default TrustRAG behaves as in v1.0: anonymous, private workspaces that expire after 24 hours. Turn on accounts
+to give each person a sign-in and workspaces that persist across restarts and browser refreshes.
+
+1. Set `ACCOUNTS_ENABLED=true` in `.env` and restart the API and UI.
+2. Create accounts as the operator (there is no sign-up). The password is prompted twice and never taken as an
+   argument; it must be 12-1024 characters:
+
+   ```bash
+   python -m src.accounts create alice          # in Docker: docker compose exec api python -m src.accounts create alice
+   ```
+
+3. Other commands: `set-password <username>` (signs the account out everywhere), `disable <username>` /
+   `enable <username>` (disabling signs it out; its workspaces are kept), `list`. `create` and `set-password` also
+   accept `--password-stdin` to read one line from standard input.
+4. In the UI, a sign-in page appears first (after the `APP_PASSWORD` gate, if set) with the sign-in form and a
+   "Continue without an account" button; once signed in, the sidebar shows who you are, Sign out and the workspace
+   selector. Or sign in via `POST /v1/auth/login` and an `Authorization: Bearer <token>` header
+   (the token is accepted in that header only). Sessions end after 2 hours idle or 24 hours in total.
+
+Account settings (all optional; values outside the allowed range stop the app at startup):
+
+| Variable | Default | Allowed | Description |
+|---|---|---|---|
+| `ACCOUNTS_ENABLED` | `false` | true / false | Enables sign-in and persistent workspaces |
+| `SESSION_IDLE_MINUTES` / `SESSION_MAX_HOURS` | `120` / `24` | 1-1440 / 1-720 | Idle timeout and absolute session lifetime |
+| `LOGIN_MAX_FAILURES_PER_USER` / `LOGIN_MAX_FAILURES_PER_CLIENT` | `5` / `20` | 1-100 / 1-1000 | Failed sign-ins allowed per username / per client address in the window |
+| `LOGIN_WINDOW_MINUTES` | `15` | 1-1440 | Length of that window |
+| `LOGIN_MAX_PER_SECOND` | `5` | 1-100 | Sign-in attempts per second for all clients together |
+| `MAX_WORKSPACES_PER_ACCOUNT` / `MAX_SESSIONS_PER_ACCOUNT` | `10` / `10` | 1-1000 / 1-100 | Caps per account (oldest session is signed out first) |
+
+In the UI, "Clear all documents" removes the documents but keeps an account user's workspace; permanent deletion is
+`DELETE /v1/workspaces/{id}` (SPEC-GAP-058, default pending your confirmation).
+
+**Shared sign-in limit in Docker Compose.** When the UI talks to the API (compose), every UI sign-in reaches the API
+from the UI container's address, so they share one per-client bucket: 20 wrong passwords from anyone lock all UI
+sign-ins for 15 minutes (rolling). Direct API sign-ins are counted per client address (SPEC-GAP-059, open).
+
+**Back up `chroma_db/` before the first start with this version.** The state database inside it now also holds
+accounts and sessions, and the first start tightens the directory to owner-only access (0700, files 0600). Losing it
+makes account workspaces unreachable.
+
+**Rollback warning.** Account workspaces are never deleted by age. If you set `ACCOUNTS_ENABLED=false` or roll back
+to v1.0 after accounts were used, those workspaces are hidden (v1.0 neither lists nor serves them) but **not
+deleted**; their data stays in `chroma_db/` until you re-enable accounts or remove it yourself.
 
 ---
 
@@ -270,7 +323,8 @@ Set in `.env` (validated at startup - a bad value stops the app with a clear mes
 | `MAX_QUESTIONS_PER_HOUR` / `MAX_FILES_PER_SESSION` | `30` / `20` | Per-session limits in the UI |
 | `RETRIEVAL_MODE` / `RERANK` | `hybrid` / `false` | Retrieval strategy; Claude reranker on/off |
 | `LOG_LEVEL` | `INFO` | JSON log verbosity |
-| `CHROMA_DIR` | `chroma_db` | Data directory (vectors + state database) |
+| `CHROMA_DIR` | `chroma_db` | Data directory (vectors + state database, including accounts); back it up |
+| `ACCOUNTS_ENABLED` | `false` | Per-user accounts and persistent workspaces; see [Accounts](#-accounts-optional) for the related settings |
 
 Product tuning (models, chunk size, thresholds, prompt versions) lives in [`src/config.py`](src/config.py).
 **Subscription mode is for your own use;** deployments serving other people need an API key under Anthropic's terms.
@@ -344,7 +398,7 @@ injection scanner that fails closed, escaping of all text inside prompt tags, ve
 rendering (no images or link targets from the model), private workspaces, localhost-only defaults, an optional
 password and API key, cross-process usage limits, hash-locked dependencies and digest-pinned images.
 
-The full analysis - attackers, 19 attacks with their mitigations and the tests that prove them, and what is **not**
+The full analysis - attackers, 42 attacks with their mitigations and the tests that prove them, and what is **not**
 defended against - is in [`THREAT_MODEL.md`](THREAT_MODEL.md). To report a vulnerability, see [`SECURITY.md`](SECURITY.md).
 
 ---
@@ -365,8 +419,10 @@ defended against - is in [`THREAT_MODEL.md`](THREAT_MODEL.md). To report a vulne
   miss is not enough, but a novel attack could still influence an answer.
 - **Single-node storage.** ChromaDB is embedded and the shared state is SQLite, so one host serves one data
   directory. Multiple hosts would need a server-based vector store and Redis (ADRs 0003 and 0005).
-- **No user accounts.** Access control is a shared password / API key plus unguessable workspace ids; workspaces live
-  for 24 hours and are lost on a browser refresh in the UI.
+- **Accounts are opt-in and minimal.** Without `ACCOUNTS_ENABLED`, access control is a shared password / API key plus
+  unguessable workspace ids; workspaces live for 24 hours and are lost on a browser refresh in the UI. With accounts
+  there is no sign-up, MFA, breached-password check or audit trail beyond logs, and sign-in uses plain HTTP unless
+  you add TLS yourself. Anyone who knows a username can block its sign-in for up to 15 minutes (THREAT_MODEL.md).
 - **Text in images on text pages isn't read.** OCR runs only on pages without extractable text.
 - **English-centric embeddings** (all-MiniLM-L6-v2); multilingual documents need a different embedding model.
 - **Subscription mode** adds ~2–3 s per Claude call (CLI start-up) and is for personal use only.
