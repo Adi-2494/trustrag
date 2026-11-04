@@ -1,6 +1,6 @@
 # 0013 - Opt-in pgvector `VectorStore` for multi-host deployments (amends 0003)
 
-**Status:** Proposed (P7, 2026-11-05; revised the same day after the security review of the plan,
+**Status:** Accepted (P7; approved by the human, 2026-11-05). Drafted 2026-11-05 and revised the same day after the security review of the plan,
 `docs/phases/p7-plan.md` section 8, findings 4, 5, 6). Amends ADR 0003 if accepted; ADR 0003 stays the default and is not
 superseded. Changing the status of ADR 0003 is a human action.
 

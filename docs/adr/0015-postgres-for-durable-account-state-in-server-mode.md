@@ -1,7 +1,7 @@
 # 0015 - Durable account state (accounts, sessions, ownership, tombstones) in Postgres in server mode (amends 0005 and 0012)
 
-**Status:** Proposed (P7, 2026-11-05; revised the same day after the security review of the plan,
-`docs/phases/p7-plan.md` section 8, findings 2, 5, 6, 9). Needs a human decision (SPEC-GAP-062): SPEC P7 names Redis for "state"; this
+**Status:** Accepted (P7; approved by the human, 2026-11-05). Drafted 2026-11-05 and revised the same day after the security review of the plan,
+`docs/phases/p7-plan.md` section 8, findings 2, 5, 6, 9). SPEC-GAP-062 decided by the human on 2026-11-05: option (a), Postgres. SPEC P7 names Redis for "state"; this
 ADR keeps durable records out of Redis and puts them in the same Postgres server as pgvector. It amends ADR 0012
 ("Workspace ownership in SQLite") and ADR 0005 for server mode only; SQLite stays the default.
 

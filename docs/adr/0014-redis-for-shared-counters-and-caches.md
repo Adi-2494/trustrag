@@ -1,6 +1,6 @@
 # 0014 - Opt-in Redis backend for shared rate limits; caches in Postgres (amends 0005)
 
-**Status:** Proposed (P7, 2026-11-05; revised the same day after the security review of the plan,
+**Status:** Accepted (P7; approved by the human, 2026-11-05). Drafted 2026-11-05 and revised the same day after the security review of the plan,
 `docs/phases/p7-plan.md` section 8, findings 2, 3, 8, 9, 12, 14). Amends ADR 0005 if accepted; SQLite stays the
 default and ADR 0005 is not superseded. Changing the status of ADR 0005 is a human action. (The file name keeps the
 first draft's wording; after the review the caches no longer live in Redis.)
