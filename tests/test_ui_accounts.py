@@ -38,8 +38,11 @@ def _launch(monkeypatch, service, *, accounts, ip=None):
     import streamlit as st
     from streamlit.testing.v1 import AppTest
 
-    from src import api_client
+    from src import api_client, llm
 
+    # The backend uses a fake LLM, so the page must not depend on this machine having the Claude CLI or an API key
+    # (CI has neither; without this the page stops at "Claude Code is not installed").
+    monkeypatch.setattr(llm, "missing_key_message", lambda: None)
     monkeypatch.setattr(config, "ACCOUNTS_ENABLED", accounts, raising=False)
     monkeypatch.setattr(config, "APP_PASSWORD", "")
     monkeypatch.setattr(api_client, "backend_from_environment", lambda: service)
