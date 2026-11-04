@@ -4,6 +4,7 @@ the in-process `TrustRAGService` or, when TRUSTRAG_API_URL is set, the TrustRAG 
 Run with:  streamlit run app.py
 """
 
+import contextlib
 import hashlib
 import hmac
 import time
@@ -12,13 +13,14 @@ from typing import Any
 import streamlit as st
 
 from src import config, llm
+from src.accounts import LoginFailed, LoginRateLimited
 from src.api_client import backend_from_environment
 from src.generator import is_refusal
 from src.llm import LLMError
 from src.loader import LoaderError
 from src.observability import setup_logging
 from src.safety import safe_markdown, sanitize_filename
-from src.service import UploadRejected
+from src.service import NotAuthenticated, UploadRejected, WorkspaceLimitReached, WorkspaceNotFound
 
 st.set_page_config(page_title="TrustRAG", page_icon="🛡️", layout="wide")
 setup_logging(config.LOG_LEVEL)
@@ -62,6 +64,105 @@ def require_password() -> None:
 
 
 require_password()
+
+# ---------------------------------------------------------------------------
+# Optional accounts (set ACCOUNTS_ENABLED in .env to turn them on). With the flag off none of this runs and the page
+# behaves exactly as in v1.0: one anonymous workspace per browser session, created on the first load.
+# ---------------------------------------------------------------------------
+KEEP_ON_RESET = {"authenticated", "failed_logins", "locked_until"}  # the APP_PASSWORD gate must survive a reset
+RESET_ON_SWITCH = ("last_result", "scan_reports", "processed_files", "files_added")
+
+
+def clear_session_state() -> None:
+    """Forget everything about the previous user (token, answers, sources, file hashes), except the password gate."""
+    for key in list(st.session_state.keys()):
+        if key not in KEEP_ON_RESET:
+            del st.session_state[key]
+
+
+def restart_signed_out(notice: str | None = None) -> None:
+    """Back to the sign-in page. Never falls back to anonymous mode: that would show another kind of data."""
+    clear_session_state()
+    if notice:
+        st.session_state.notice = notice
+    st.rerun()
+
+
+def select_workspace(workspace: str) -> None:
+    """Make `workspace` current and drop everything that belonged to the previous one."""
+    st.session_state.workspace = workspace
+    st.session_state.last_result = None
+    st.session_state.scan_reports = {}
+    st.session_state.processed_files = set()
+    st.session_state.files_added = 0
+    st.session_state.uploader_key = st.session_state.get("uploader_key", 0) + 1  # a fresh, empty upload box
+
+
+def show_sign_in_page() -> None:
+    """The choice page: sign in, or carry on without an account. Stops the script."""
+    st.title("🛡️ TrustRAG")
+    notice = st.session_state.pop("notice", None)
+    if notice:
+        st.info(notice)
+    st.subheader("Sign in")
+    with st.form("signin_form"):
+        username = st.text_input("Username", key="signin_username")
+        password = st.text_input("Password", type="password", key="signin_password")
+        submitted = st.form_submit_button("Sign in", key="signin_submit")
+    if submitted:
+        # The IP address is used as a per-client key for the sign-in limit; when Streamlit doesn't know it, send none.
+        client_key = st.context.ip_address
+        try:
+            if client_key is None:
+                info = backend.login(username, password)
+            else:
+                info = backend.login(username, password, client_key=client_key)
+        except (LoginFailed, LoginRateLimited) as e:
+            st.error(str(e))  # fixed, friendly texts that never echo the input
+        else:
+            clear_session_state()  # also removes the typed password from the page state
+            st.session_state.session = info["token"]
+            st.session_state.username = info["username"]
+            st.rerun()
+    st.divider()
+    st.caption("Or use TrustRAG for this browser session only. Your documents are not saved to an account.")
+    if st.button("Continue without an account", key="continue_anonymous"):
+        st.session_state.anonymous = True
+        st.rerun()
+    st.stop()
+
+
+SESSION: str | None = None  # the account session token (None = anonymous), kept only in st.session_state
+OWNED: list[str] = []  # the signed-in account's workspaces
+
+if config.ACCOUNTS_ENABLED:
+    if not st.session_state.get("session") and not st.session_state.get("anonymous"):
+        show_sign_in_page()
+    SESSION = st.session_state.get("session")
+    if SESSION:
+        try:
+            OWNED = [w["workspace"] for w in backend.list_workspaces(session=SESSION)["workspaces"]]
+            if not OWNED:
+                OWNED = [backend.new_workspace(session=SESSION)]  # a new account starts with one workspace
+        except NotAuthenticated:
+            restart_signed_out("Your session has ended. Please sign in again.")
+        except WorkspaceLimitReached as e:
+            st.error(str(e))
+            st.stop()
+        if st.session_state.get("workspace") not in OWNED:
+            select_workspace(OWNED[0])
+
+
+def backend_call(method: str, *args: Any, **kwargs: Any) -> Any:
+    """Call a workspace method of the backend, handling an ended session or a vanished workspace cleanly."""
+    try:
+        return getattr(backend, method)(WORKSPACE, *args, session=SESSION, **kwargs)
+    except NotAuthenticated:
+        restart_signed_out("Your session has ended. Please sign in again.")
+    except WorkspaceNotFound:
+        st.session_state.pop("workspace", None)  # a new one is created (or chosen) on the next run
+        st.rerun()
+
 
 # st.session_state survives Streamlit's re-runs (the script re-runs on every click).
 if "workspace" not in st.session_state:
@@ -148,8 +249,8 @@ def process_upload(uploaded_file: Any, excluded_risks: list[str]) -> None:
     with st.spinner(f"Reading and security-scanning {name}..."):
         progress = st.empty()
         try:
-            result = backend.upload(
-                WORKSPACE,
+            result = backend_call(
+                "upload",
                 name,
                 data,
                 excluded_risks,
@@ -214,7 +315,41 @@ def question_limit_reached() -> bool:
 # ---------------------------------------------------------------------------
 # Sidebar: upload documents, see what is loaded, API usage
 # ---------------------------------------------------------------------------
+def on_workspace_change() -> None:
+    select_workspace(st.session_state.workspace_select)
+
+
+def show_account_controls() -> None:
+    """Who is signed in, sign out, and which of the account's workspaces is open."""
+    st.caption(f"Signed in as **{safe_markdown(str(st.session_state.get('username', '')))}**")
+    if st.button("Sign out", key="sign_out"):
+        # Already ended on the server, or the API is unreachable: the local state is cleared either way.
+        with contextlib.suppress(NotAuthenticated, LLMError):
+            backend.logout(SESSION or "")
+        restart_signed_out()
+    st.session_state.workspace_select = WORKSPACE  # keep the box in step with the current workspace
+    st.selectbox(
+        "Workspace",
+        options=OWNED,
+        key="workspace_select",
+        format_func=lambda w: f"Workspace {OWNED.index(w) + 1}",
+        on_change=on_workspace_change,
+    )
+    if st.button("➕ New workspace", key="new_workspace"):
+        try:
+            select_workspace(backend.new_workspace(session=SESSION))
+        except WorkspaceLimitReached as e:
+            st.error(str(e))
+        except NotAuthenticated:
+            restart_signed_out("Your session has ended. Please sign in again.")
+        else:
+            st.rerun()
+    st.divider()
+
+
 with st.sidebar:
+    if SESSION:
+        show_account_controls()
     st.header("📄 Documents")
     upload_area = st.container()  # filled below, once we know the security setting
 
@@ -240,13 +375,13 @@ with st.sidebar:
             process_upload(uploaded_file, excluded_risks)
 
     st.divider()
-    files = backend.list_files(WORKSPACE)
+    files = backend_call("list_files")
     if files:
         st.caption("Your documents (private to this session):")
         for name in files:
             st.text(f"• {name}")
         if st.button("🗑️ Clear all documents"):
-            backend.clear(WORKSPACE)  # only this session's documents
+            backend_call("clear_documents")  # empties the workspace, keeps it (and its owner)
             st.session_state.processed_files = set()
             st.session_state.last_result = None
             st.session_state.scan_reports = {}
@@ -280,7 +415,7 @@ with st.form("question_form"):
 if asked:
     if not question.strip():
         st.warning("Please type a question first.")
-    elif backend.count(WORKSPACE) == 0:
+    elif backend_call("count") == 0:
         st.warning("Please upload at least one PDF first.")
     elif question_limit_reached():
         st.warning(f"You've asked {config.MAX_QUESTIONS_PER_HOUR} questions in the last hour. Please wait a while.")
@@ -290,7 +425,7 @@ if asked:
             with st.spinner(
                 "Searching your documents, writing an answer and fact-checking it (usually 5–15 seconds)..."
             ):
-                st.session_state.last_result = backend.ask(WORKSPACE, question)
+                st.session_state.last_result = backend_call("ask", question)
             st.rerun()  # re-run so the sidebar API counter shows the new number
         except LLMError as e:
             st.error(str(e))

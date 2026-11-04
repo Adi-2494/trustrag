@@ -15,3 +15,5 @@ New decisions get the next number; superseded records are kept and marked as suc
 | [0008](0008-escalate-ai-medium-verdicts.md) | AI "suspicious" verdicts of MEDIUM or above count as HIGH | Accepted |
 | [0009](0009-public-benchmark-data-handling.md) | Public benchmark data: downloaded once, hash-verified, JSON only, never vendored | Accepted |
 | [0010](0010-eval-history-jsonl-and-static-trend-report.md) | Eval history as append-only JSON Lines; static Markdown trend report | Accepted |
+| [0011](0011-local-password-accounts-and-server-side-sessions.md) | Local password accounts (stdlib scrypt), hashed server-side sessions, rate-limited timing-safe login, behind one `Authenticator` interface | Accepted |
+| [0012](0012-workspace-ownership-and-retention.md) | Workspace ownership in SQLite (tombstoned on delete), distinct `acct_` collections, authorisation always on in the service, account workspaces exempt from 24 h cleanup | Accepted |

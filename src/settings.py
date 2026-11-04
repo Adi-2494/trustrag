@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     retrieval_mode: Literal["semantic", "hybrid"] = "hybrid"
     rerank: bool = False
 
+    # Accounts (P6, ADR 0011/0012): opt-in; every number is > 0 and bounded so a typo cannot disable a limit.
+    accounts_enabled: bool = False
+    session_idle_minutes: int = Field(default=120, gt=0, le=1440)
+    session_max_hours: int = Field(default=24, gt=0, le=720)
+    login_max_failures_per_user: int = Field(default=5, gt=0, le=100)
+    login_max_failures_per_client: int = Field(default=20, gt=0, le=1000)
+    login_window_minutes: int = Field(default=15, gt=0, le=1440)
+    login_max_per_second: int = Field(default=5, gt=0, le=100)
+    max_workspaces_per_account: int = Field(default=10, gt=0, le=1000)
+    max_sessions_per_account: int = Field(default=10, gt=0, le=100)
+
     @field_validator("llm_provider", mode="before")
     @classmethod
     def _lower(cls, value: str) -> str:

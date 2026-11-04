@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 import uuid
 from typing import Any
 
@@ -13,9 +14,11 @@ class FakeStore:
 
     def __init__(self) -> None:
         self.workspaces: dict[str, dict[str, Chunk]] = {}
+        self.cleanup_calls: list[dict[str, frozenset[str]]] = []  # P6: what the service asked cleanup to keep / purge
 
-    def new_workspace(self) -> str:
-        workspace = uuid.uuid4().hex
+    def new_workspace(self, *, persistent: bool = False) -> str:
+        """Account workspaces (`persistent=True`) get the ADR 0012 id form `acct-<32 hex>`; anonymous ones `<32 hex>`."""
+        workspace = ("acct-" if persistent else "") + uuid.uuid4().hex
         self.workspaces[workspace] = {}
         return workspace
 
@@ -51,8 +54,40 @@ class FakeStore:
     def clear(self, workspace: str) -> None:
         self.workspaces[workspace] = {}
 
-    def cleanup(self) -> int:
+    def cleanup(self, *, keep: frozenset[str] = frozenset(), purge: frozenset[str] = frozenset()) -> int:
+        """Records its arguments (the 24 h age rule itself is covered with the real ChromaStore)."""
+        self.cleanup_calls.append({"keep": frozenset(keep), "purge": frozenset(purge)})
         return 0
+
+
+class FakeAuthenticator:
+    """
+    An `Authenticator` (src/interfaces.py) without passwords or SQLite: tokens are random strings kept in memory.
+    `add_user` returns (principal, token). `revoke` / `expire` make the token unknown, as logout or expiry would.
+    """
+
+    def __init__(self) -> None:
+        self._tokens: dict[str, dict[str, str]] = {}
+        self.resolve_calls: list[str] = []
+
+    def add_user(self, username: str) -> tuple[dict[str, str], str]:
+        principal = {"account_id": uuid.uuid4().hex, "username": username}
+        return principal, self.start_session(principal["account_id"], username)["token"]
+
+    def start_session(self, account_id: str, username: str = "fake", *, expected_hash: str | None = None) -> Any:
+        token = "tok-" + uuid.uuid4().hex
+        self._tokens[token] = {"account_id": account_id, "username": username}
+        return {"token": token, "username": username, "expires_at": time.time() + 3600}
+
+    def resolve(self, token: str) -> dict[str, str] | None:
+        self.resolve_calls.append(token)
+        found = self._tokens.get(token)
+        return dict(found) if found else None
+
+    def logout(self, token: str) -> None:
+        self._tokens.pop(token, None)
+
+    revoke = expire = logout
 
 
 class FakeLLM:

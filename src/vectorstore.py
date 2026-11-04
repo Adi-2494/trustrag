@@ -4,7 +4,9 @@ ChromaDB turns text into embeddings (lists of numbers that capture meaning) usin
 built-in all-MiniLM-L6-v2 model. It runs locally, is free and needs no API key.
 
 Every user session gets its own private WORKSPACE (a separate ChromaDB collection), so users can never see,
-search, delete or overwrite each other's documents. Workspaces unused for a while are deleted automatically.
+search, delete or overwrite each other's documents. Anonymous workspaces (`ws_<hex>`) unused for a while are
+deleted automatically. Account workspaces (`acct_<hex>`, ADR 0012) are never deleted by age: only when the owner
+deleted them (the caller passes their ids as `purge`).
 """
 
 import contextlib
@@ -23,11 +25,21 @@ from src.models import Chunk, RetrievedChunk
 _client: Any = None
 _collections: dict[str, Any] = {}  # workspace id -> collection; opening a collection loads its index, so keep it open
 _WORKSPACE_ID = re.compile(r"^[a-f0-9]{32}$")
+_ACCOUNT_WORKSPACE_ID = re.compile(r"^acct-[a-f0-9]{32}$")
 
 
-def new_workspace_id() -> str:
-    """A random, unguessable id for one user session."""
-    return uuid.uuid4().hex
+def new_workspace_id(persistent: bool = False) -> str:
+    """A random, unguessable id: `<hex>` for an anonymous session, `acct-<hex>` for an account workspace."""
+    return ("acct-" if persistent else "") + uuid.uuid4().hex
+
+
+def _workspace_id_of(collection_name: str) -> str | None:
+    """The workspace id a ChromaDB collection name stands for (inverse of `_collection_name`), if it is ours."""
+    if collection_name.startswith("ws_"):
+        return collection_name[3:]
+    if collection_name.startswith("acct_"):
+        return "acct-" + collection_name[5:]
+    return None
 
 
 def _get_client() -> Any:
@@ -38,9 +50,12 @@ def _get_client() -> Any:
 
 
 def _collection_name(workspace: str) -> str:
-    if not _WORKSPACE_ID.match(workspace or ""):
-        raise ValueError("Invalid workspace id")
-    return f"ws_{workspace}"
+    workspace = workspace or ""
+    if _WORKSPACE_ID.fullmatch(workspace):
+        return f"ws_{workspace}"
+    if _ACCOUNT_WORKSPACE_ID.fullmatch(workspace):
+        return "acct_" + workspace[len("acct-") :]
+    raise ValueError("Invalid workspace id")
 
 
 def _get_collection(workspace: str) -> Any:
@@ -124,15 +139,31 @@ def clear(workspace: str) -> None:
     _collections.pop(workspace, None)
 
 
-def cleanup_old_workspaces(max_age_hours: float = config.WORKSPACE_MAX_AGE_HOURS) -> int:
-    """Delete workspaces older than max_age_hours (left behind by closed browser tabs). Returns how many."""
+def cleanup_old_workspaces(
+    max_age_hours: float = config.WORKSPACE_MAX_AGE_HOURS,
+    keep: frozenset[str] = frozenset(),
+    purge: frozenset[str] = frozenset(),
+) -> int:
+    """
+    Delete abandoned workspaces. Returns how many.
+
+    - `ws_*` older than max_age_hours (left behind by closed browser tabs), unless listed in `keep`.
+    - `acct_*` only when listed in `purge` (deleted by their owner); never by age.
+    """
     cutoff = time.time() - max_age_hours * 3600
     removed = 0
     for collection in _get_client().list_collections():
-        created = (collection.metadata or {}).get("created", 0)
-        if collection.name.startswith("ws_") and created < cutoff:
+        workspace = _workspace_id_of(collection.name)
+        if workspace is None:
+            continue
+        if collection.name.startswith("ws_"):
+            created = (collection.metadata or {}).get("created", 0)
+            doomed = created < cutoff and workspace not in keep
+        else:
+            doomed = workspace in purge
+        if doomed:
             _get_client().delete_collection(collection.name)
-            _collections.pop(collection.name[3:], None)
+            _collections.pop(workspace, None)
             removed += 1
     return removed
 
@@ -140,8 +171,8 @@ def cleanup_old_workspaces(max_age_hours: float = config.WORKSPACE_MAX_AGE_HOURS
 class ChromaStore:
     """The production `VectorStore` (see src/interfaces.py): a thin object wrapper around this module."""
 
-    def new_workspace(self) -> str:
-        return new_workspace_id()
+    def new_workspace(self, *, persistent: bool = False) -> str:
+        return new_workspace_id(persistent)
 
     def add_chunks(self, workspace: str, chunks: list[Chunk]) -> None:
         add_chunks(workspace, chunks)
@@ -164,5 +195,5 @@ class ChromaStore:
     def clear(self, workspace: str) -> None:
         clear(workspace)
 
-    def cleanup(self) -> int:
-        return cleanup_old_workspaces()
+    def cleanup(self, *, keep: frozenset[str] = frozenset(), purge: frozenset[str] = frozenset()) -> int:
+        return cleanup_old_workspaces(keep=keep, purge=purge)

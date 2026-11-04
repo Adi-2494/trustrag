@@ -6,6 +6,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 1 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 1 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 1 | +0.000 |
 | 2026-10-24T21:33:57 | bf3c288 | all | 1 | - |
@@ -14,6 +15,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.973 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.973 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.973 | +0.000 |
 | 2026-10-24T21:33:57 | bf3c288 | all | 0.973 | - |
@@ -22,6 +24,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.909 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.909 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.909 | +0.000 |
 | 2026-10-24T21:33:57 | bf3c288 | all | 0.909 | - |
@@ -30,6 +33,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.667 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.667 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.667 | +0.000 |
 | 2026-10-24T21:33:57 | bf3c288 | all | 0.667 | - |
@@ -38,6 +42,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.067 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.067 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.067 | +0.000 |
 | 2026-10-24T21:33:57 | bf3c288 | all | 0.067 | - |
@@ -112,6 +117,7 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.529 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.529 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.529 | - |
 
@@ -119,5 +125,6 @@ Last 10 runs per metric, newest first. `*` marks a run on uncommitted code.
 
 | Run | Commit | Suite | Value | Change |
 | --- | --- | --- | --- | --- |
+| 2026-11-04T11:29:37 | eae245e* | free | 0.362 | +0.000 |
 | 2026-10-31T20:48:21 | 5fb45ca* | free | 0.362 | +0.000 |
 | 2026-10-31T20:11:59 | 5fb45ca* | free | 0.362 | - |

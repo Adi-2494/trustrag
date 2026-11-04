@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **User accounts and persistent workspaces (P6, opt-in):** set `ACCOUNTS_ENABLED=true`. Accounts are created by the
+  operator with `python -m src.accounts` (`create`, `set-password`, `disable`, `enable`, `list`); no sign-up.
+  Salted scrypt passwords, bearer-token sessions (idle and absolute expiry), sign-in rate limits, per-account
+  workspace caps, `/v1/auth/*` and `GET /v1/workspaces` routes, UI sign-in. Account workspaces are not deleted by the
+  24 h cleanup, and an authorisation check on every workspace route returns "not found" for other people's workspaces.
+  Default (`false`) keeps v1.0 behaviour. See ADRs 0011 and 0012.
+- `DELETE /v1/workspaces/{id}/documents` removes a workspace's documents but keeps the workspace; the UI's "Clear all documents"
+  uses it for account users (SPEC-GAP-058). `DELETE /v1/workspaces/{id}` permanently deletes an account workspace (id retired).
+- **Threat model:** rows 26-42 for accounts, sessions and sign-in abuse, a new actor and asset, and new known limits.
 - **Public benchmark (P5):** retrieval recall@4 and MRR on a 50-paper subset of Qasper v0.3 dev (CC BY 4.0,
   Dasigi et al. 2021), reported in `eval/results/` and the README. The subset is downloaded on demand
   (`make eval-download-qasper`), pinned by SHA-256 and checked on every load; without it the suite reports
@@ -14,6 +23,17 @@ All notable changes to this project are documented here. The format follows
   `make eval-trend` writes `eval/results/TRENDS.md` (last 10 runs per metric).
 - **Threat model:** rows 20-25 for the benchmark download and data path (ADRs 0009 and 0010). Hardening: decompressed-size
   cap before tar parsing, identity-based data-directory check, charset-validated manifest, fail-fast benchmark checks.
+
+### Changed
+- Workspace id validation now uses `fullmatch`, so an id with a trailing newline is refused (v1.0 accepted `"<hex>\n"`).
+- `docker-compose.yml` runs the API with `--no-proxy-headers`; use the same flag when starting `uvicorn` yourself.
+- First start with this version adds account tables to the state database and restricts `chroma_db/` to owner-only
+  access (directory 0700, files 0600). **Back up `chroma_db/` first.**
+
+### Rollback warning
+Rolling back to v1.0, or setting `ACCOUNTS_ENABLED=false`, after accounts were used hides account workspaces but
+does not delete them (v1.0 cleanup only removes anonymous `ws_` collections and rejects `acct-` ids). Their data stays
+in `chroma_db/`.
 
 ## [1.0.0] - 2026-10-24
 
