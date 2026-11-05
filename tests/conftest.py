@@ -12,6 +12,12 @@ from src import config
 from src import passwords as _passwords  # noqa: F401
 
 
+def pytest_configure(config):
+    """Register the P7 markers (pyproject.toml has no `markers` list to extend)."""
+    config.addinivalue_line("markers", "integration: needs the compose server profile (TRUSTRAG_IT_API_URLS)")
+    config.addinivalue_line("markers", "local_only: reads the SQLite state file; skipped on the server backend")
+
+
 @pytest.fixture(autouse=True)
 def isolated_state(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "STATE_DB", str(tmp_path / "state.sqlite"))
@@ -67,6 +73,8 @@ class Clock:
 def clock(monkeypatch):
     fake = Clock(1_800_000_000.0)
     monkeypatch.setattr(time, "time", fake)
+    # P7: server backends use their own clocks unless a test freezes time (plan 2.2); a no-op for the local backend
+    monkeypatch.setattr(config, "STATE_CLOCK", "caller", raising=False)
     return fake
 
 
@@ -94,3 +102,66 @@ def scrypt_spy(monkeypatch):
 
     monkeypatch.setattr(hashlib, "scrypt", counting)
     return spy
+
+
+# ---------------------------------------------------------------------------- P7 helpers (docs/phases/p7-plan.md 3)
+@pytest.fixture
+def server_backend(request, monkeypatch):
+    """Server profile (pgvector + Redis, fresh schema and prefix). Skips when TRUSTRAG_TEST_* URLs are not set."""
+    from tests import server_support
+
+    handle = server_support.activate(monkeypatch)
+    if "clock" in request.fixturenames:  # a frozen-clock test: the callers' time is authoritative (plan 2.2)
+        monkeypatch.setattr(config, "STATE_CLOCK", "caller", raising=False)
+    try:
+        yield handle
+    finally:
+        server_support.deactivate(handle)
+
+
+@pytest.fixture(params=["local", "server"])
+def storage_backend(request):
+    """The backend under test. `server` skips without TRUSTRAG_TEST_* URLs, and for tests marked `local_only`."""
+    if request.param == "server":
+        if request.node.get_closest_marker("local_only"):
+            pytest.skip("reads the SQLite state file: local backend only")
+        request.getfixturevalue("server_backend")
+    return request.param
+
+
+@pytest.fixture(params=["ChromaStore", "PgVectorStore"])
+def real_store(request, monkeypatch):
+    """A real `VectorStore`: ChromaDB (needs the cached embedding model) or pgvector (needs the server backends)."""
+    if request.param == "ChromaStore":
+        import os
+
+        from src import vectorstore
+
+        if not os.path.isdir(os.path.expanduser("~/.cache/chroma/onnx_models/all-MiniLM-L6-v2")):
+            pytest.skip("needs the local embedding model")
+        monkeypatch.setattr(vectorstore, "_client", None)
+        monkeypatch.setattr(vectorstore, "_collections", {})
+        return vectorstore.ChromaStore()
+    request.getfixturevalue("server_backend")
+    from src.pgvector_store import PgVectorStore
+
+    return PgVectorStore()
+
+
+@pytest.fixture
+def store_for_backend(storage_backend, monkeypatch):
+    """The real `VectorStore` that matches `storage_backend`: ChromaStore for [local], PgVectorStore for [server].
+    Unlike `real_store` (which is parametrised on its own) this never builds the mixed combinations."""
+    if storage_backend == "local":
+        import os
+
+        from src import vectorstore
+
+        if not os.path.isdir(os.path.expanduser("~/.cache/chroma/onnx_models/all-MiniLM-L6-v2")):
+            pytest.skip("needs the local embedding model")
+        monkeypatch.setattr(vectorstore, "_client", None)
+        monkeypatch.setattr(vectorstore, "_collections", {})
+        return vectorstore.ChromaStore()
+    from src.pgvector_store import PgVectorStore
+
+    return PgVectorStore()

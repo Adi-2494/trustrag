@@ -19,6 +19,9 @@ from tests import p6_golden
 from tests.fakes import FakeLLM, FakeStore
 from tests.p6_support import HANDBOOK, add_account, bearer, install_api, make_service, upload
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 
 @pytest.fixture(scope="module")
 def golden():

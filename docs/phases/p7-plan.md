@@ -233,6 +233,20 @@ carry hashes for both image architectures. No `pgvector`, `psycopg_pool`, `sqlal
 `testcontainers`. New images (SPEC-GAP-065): Postgres with pgvector and Redis (or Valkey), pinned by digest in compose
 and in CI `services:`; `test_docker_and_ci_use_pins` is extended to enforce this (mandatory, review finding 7).
 
+**Decided by the human on 2026-11-05** (SPEC-GAP-064, -065, -086; evidence in `docs/phases/p7-dependency-proposal.md`):
+
+| Item | Decision | Licence |
+|---|---|---|
+| Python: Postgres client | `psycopg[binary]==3.3.6` (the settled release, not the 1-day-old 3.3.8) | LGPL-3.0-only, accepted by the human |
+| Python: counter-server client | `redis==8.1.0` (redis-py) | MIT |
+| Counter server image | `valkey/valkey:9.1.3@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7` - Redis-protocol compatible; chosen over Redis for its licence (ADR 0014) | BSD-3-Clause |
+| Postgres image | `pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8` | PostgreSQL / pgvector (PostgreSQL licence, not verified) |
+| Postgres auth (added hardening) | `POSTGRES_INITDB_ARGS="--auth-local=scram-sha-256 --auth-host=scram-sha-256"` in compose and CI, in addition to forbidding `POSTGRES_HOST_AUTH_METHOD=trust`; the image otherwise trusts the unix socket and loopback inside the container (proposal section 3). Applies only when an empty data volume is initialised | - |
+
+Setting and module names (`STATE_BACKEND=redis`, `REDIS_URL`, `REDIS_PREFIX`, `docker/redis.conf`) are unchanged;
+"Redis" in this plan means the Redis protocol, served by Valkey. Installing the packages and regenerating the locks
+remain human gates (section 6, item 2).
+
 ### 2.8 Files touched (summary)
 
 New: `src/state_redis.py`, `src/state_postgres.py`, `src/pgvector_store.py`, `src/storage.py`,
@@ -428,7 +442,10 @@ text stays in Postgres heap/WAL pages until `VACUUM` (review 4c); local-mode OCR
    (and, at the end, changing their status and noting "amended by" on 0003 / 0005 / 0012); SPEC-GAPs 062–090.
 2. **New dependencies and lock regeneration** (T1, T4): `psycopg[binary]`, `redis`; installing them in `.venv`;
    regenerating `requirements.lock` and `requirements-dev.lock` with hashes for amd64 and arm64 (SPEC-GAP-090).
-3. **New container images and licence** (SPEC-GAP-065): Postgres+pgvector and Redis/Valkey, pinned by digest.
+3. **New container images and licence** (SPEC-GAP-065): **decided by the human on 2026-11-05** - Valkey 9.1.3
+   (BSD-3-Clause) and `pgvector/pgvector:0.8.7-pg17-bookworm`, both by digest; pins `psycopg[binary]==3.3.6`
+   (LGPL-3.0 accepted) and `redis==8.1.0`; Postgres scram-only auth via `POSTGRES_INITDB_ARGS` (section 2.7). The
+   compose/CI changes that apply them are still reviewed at items 4 and 5.
 4. **Deployment config**: `docker-compose.yml` (server profile, `backend` internal network, volumes, file secrets),
    `docker/postgres-init.sh`, `docker/redis.conf`, `.dockerignore`, `.gitignore`.
 5. **CI workflow change**: `.github/workflows/tests.yml` service containers.

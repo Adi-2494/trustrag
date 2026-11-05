@@ -20,6 +20,8 @@ dependencies = [
     "python-multipart==0.0.32",
     "httpx==0.28.1",
     "rank-bm25==0.2.2",
+    "psycopg[binary]==3.3.6",  # server mode only (ADR 0013, 0015); imported lazily
+    "redis==8.1.0",  # server mode only (ADR 0014); talks to Valkey; imported lazily
 ]
 
 [project.optional-dependencies]

@@ -21,6 +21,7 @@ from src.loader import LoaderError
 from src.observability import setup_logging
 from src.safety import safe_markdown, sanitize_filename
 from src.service import NotAuthenticated, UploadRejected, WorkspaceLimitReached, WorkspaceNotFound
+from src.state import StorageUnavailable
 
 st.set_page_config(page_title="TrustRAG", page_icon="🛡️", layout="wide")
 setup_logging(config.LOG_LEVEL)
@@ -31,7 +32,31 @@ def get_backend() -> Any:
     return backend_from_environment()
 
 
-backend = get_backend()
+class StorageGuard:
+    """Wraps the backend so a server-mode storage outage shows one fixed message instead of a traceback (P7).
+
+    The in-process service raises `StorageUnavailable` (driver text is only its `__cause__`); nothing from it is shown.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._inner, name)
+        if not callable(attribute):
+            return attribute
+
+        def guarded(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return attribute(*args, **kwargs)
+            except StorageUnavailable:
+                st.error(config.STORAGE_UNAVAILABLE_MESSAGE)
+                st.stop()
+
+        return guarded
+
+
+backend = StorageGuard(get_backend())
 
 
 # ---------------------------------------------------------------------------

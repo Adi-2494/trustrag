@@ -17,3 +17,7 @@ eval-download-qasper: ## download and verify the Qasper subset (network, human g
 
 eval-trend:      ## regenerate eval/results/TRENDS.md from eval/results/history.jsonl (no network)
 	python -m eval.trend
+
+.PHONY: eval-free-pgvector
+eval-free-pgvector: ## the free suite on the pgvector store (needs DATABASE_URL and REDIS_URL; writes results-pgvector.json only)
+	python -m eval.run_eval --suite free --vector-store pgvector

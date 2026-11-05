@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Server mode for several API hosts (P7, opt-in):** `VECTOR_STORE=pgvector` with `STATE_BACKEND=redis`, plus
+  `DATABASE_URL` and `REDIS_URL`. Documents, accounts, sessions, workspace ownership and the scan and OCR caches (24 h
+  TTL) live in PostgreSQL with pgvector; rate-limit counters live in a Redis-protocol server (Valkey in compose), so
+  sign-in and model-call limits are shared across hosts and fail closed when a store is down (fixed 503, never driver
+  text). `docker compose --profile server up` starts Postgres, Valkey and two API containers (ports 8001 and 8002) on
+  an internal network the UI cannot reach; `docker/postgres-init.sh` creates the non-superuser app role and schema on
+  an empty volume. Backend URLs go in `.env.server` (template `.env.server.example`). Local mode (Chroma + SQLite)
+  is the default and unchanged. No migration from local data. See ADRs 0013-0015 and README "Server mode".
+- **Threat model:** rows 43-63 for server mode; rows 5, 16, 26, 27 and 42 updated; new known limits (no TLS between
+  containers, passwords visible to `docker inspect`, no Redis ACL, deleted text until `VACUUM`).
+- CI starts Postgres and Valkey service containers (digest-pinned) so the server-backend tests run there.
 - **User accounts and persistent workspaces (P6, opt-in):** set `ACCOUNTS_ENABLED=true`. Accounts are created by the
   operator with `python -m src.accounts` (`create`, `set-password`, `disable`, `enable`, `list`); no sign-up.
   Salted scrypt passwords, bearer-token sessions (idle and absolute expiry), sign-in rate limits, per-account

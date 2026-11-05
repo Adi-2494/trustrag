@@ -8,6 +8,9 @@ from src.generator import generate_answer, is_refusal
 from src.llm import _parse_json
 from src.loader import LoaderError, load_pdf
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 SAMPLE_PDF = "sample_docs/company_handbook.pdf"
 
 

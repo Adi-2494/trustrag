@@ -6,6 +6,15 @@
 #
 # Both ports are published on 127.0.0.1 only. Secrets come from .env and the mounted token file, never the image.
 # SQLite instead of Redis for shared state: see docs/adr/0005-sqlite-for-shared-state.md.
+#
+# Optional "server" profile (nothing starts unless you ask for it): PostgreSQL+pgvector for documents and accounts,
+# Valkey (Redis protocol) for rate-limit counters, and two API containers sharing them:
+#   docker compose --profile server up -d --build postgres redis api-server-1 api-server-2
+#   ->  API 1 on 127.0.0.1:8001, API 2 on 127.0.0.1:8002 (name the services, or the default api/ui start too)
+# Needs .env.server (copy .env.server.example) and three secret files in $TRUSTRAG_SECRETS_DIR
+# (default ~/.trustrag/server-secrets; must be under your home or the repo so colima can mount it):
+#   pg_superuser_password, pg_app_password, redis_auth.conf (one line: requirepass <password>).
+# Postgres and Valkey publish no ports and sit on an internal network the UI cannot reach.
 
 services:
   api:
@@ -39,5 +48,114 @@ services:
       - "127.0.0.1:7860:7860"
     restart: unless-stopped
 
+  # ---- server profile ------------------------------------------------------------------------------------------
+  postgres:
+    profiles: [server]
+    image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_superuser_password
+      POSTGRES_DB: trustrag
+      # scram-sha-256 everywhere, also for local socket and loopback inside the container (no trust auth).
+      # Applies when the data volume is first initialised.
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
+    secrets: [pg_superuser_password, pg_app_password]
+    volumes:
+      - trustrag-pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trustrag"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:   # Valkey (BSD-3), Redis protocol; the service name stays "redis"
+    profiles: [server]
+    image: valkey/valkey:9.1.3@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7
+    command: ["valkey-server", "/usr/local/etc/valkey/valkey.conf"]
+    volumes:
+      - ./docker/redis.conf:/usr/local/etc/valkey/valkey.conf:ro
+      - trustrag-redisdata:/data
+    secrets:
+      - source: redis_auth
+        target: redis_auth.conf
+    networks: [backend]
+    healthcheck:
+      # The password is read from the secret file inside the container, never written in this file.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(sed -n 's/^requirepass //p' /run/secrets/redis_auth.conf)\" valkey-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api-server-1:
+    profiles: [server]
+    build: .
+    image: trustrag:latest
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]
+    env_file: [.env, .env.server]   # .env.server (backend URLs and passwords) is read by these two services only
+    environment:
+      VECTOR_STORE: pgvector
+      STATE_BACKEND: redis
+      CHROMA_DIR: /app/chroma_db
+    volumes:
+      - ${HOME}/.trustrag/claude_token:/run/secrets/claude_code_oauth_token:ro
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [backend, default]   # default gives the published port a route; backend reaches Postgres/Valkey
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+    restart: unless-stopped
+
+  api-server-2:
+    profiles: [server]
+    image: trustrag:latest
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]
+    env_file: [.env, .env.server]
+    environment:
+      VECTOR_STORE: pgvector
+      STATE_BACKEND: redis
+      CHROMA_DIR: /app/chroma_db
+    volumes:
+      - ${HOME}/.trustrag/claude_token:/run/secrets/claude_code_oauth_token:ro
+    ports:
+      - "127.0.0.1:8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [backend, default]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  backend:
+    internal: true   # no route to the outside and the UI is not attached
+
+secrets:
+  pg_superuser_password:
+    file: ${TRUSTRAG_SECRETS_DIR:-${HOME}/.trustrag/server-secrets}/pg_superuser_password
+  pg_app_password:
+    file: ${TRUSTRAG_SECRETS_DIR:-${HOME}/.trustrag/server-secrets}/pg_app_password
+  redis_auth:
+    file: ${TRUSTRAG_SECRETS_DIR:-${HOME}/.trustrag/server-secrets}/redis_auth.conf
+
 volumes:
   trustrag-data:
+  trustrag-pgdata:
+  trustrag-redisdata:

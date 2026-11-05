@@ -29,3 +29,8 @@ interview_prep/
 
 # Qasper subset (CC BY 4.0 third-party text): never commit or ship
 **/subset.json
+
+# Server profile: backend URLs/passwords and secret files (never commit, never ship in the image)
+.env.server
+secrets/
+*.secret

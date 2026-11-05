@@ -1,6 +1,6 @@
 # TrustRAG evaluation results
 
-Run: 2026-11-04T11:29:37 · commit `eae245e` · answer model `claude-sonnet-5-5` · checker model `claude-haiku-5-5`
+Run: 2026-11-05T19:36:16 · commit `4c2c68d` · answer model `claude-sonnet-5-5` · checker model `claude-haiku-5-5`
 
 ## Retrieval (default settings: hybrid, fixed chunks of 800)
 

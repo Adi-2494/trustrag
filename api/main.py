@@ -27,6 +27,7 @@ from src.loader import LoaderError
 from src.models import AskResult, SessionInfo, UploadResult, WorkspaceList
 from src.observability import METRICS, event, request_id_var, setup_logging
 from src.service import NotAuthenticated, TrustRAGService, UploadRejected, WorkspaceLimitReached
+from src.state import StorageUnavailable
 
 setup_logging(config.LOG_LEVEL)
 app = FastAPI(
@@ -97,6 +98,12 @@ async def request_context(request: Request, call_next: Callable[[Request], Await
 @app.exception_handler(ValueError)
 async def invalid_workspace(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": "Workspace not found."})
+
+
+@app.exception_handler(StorageUnavailable)
+async def storage_unavailable(_: Request, error: StorageUnavailable) -> JSONResponse:
+    """Server mode only: Postgres/Redis failed. Fixed body; the driver error is never shown or logged here."""
+    return JSONResponse(status_code=503, content={"detail": config.STORAGE_UNAVAILABLE_MESSAGE})
 
 
 @app.exception_handler(NotAuthenticated)

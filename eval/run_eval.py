@@ -5,6 +5,12 @@ TrustRAG evaluation runner.
   python -m eval.run_eval --suite all    # everything, including answer quality, trust score and the AI scanner
 
 Results are written to eval/results/results.json and eval/results/RESULTS.md.
+
+  python -m eval.run_eval --suite free --vector-store pgvector   # same suite on the server store (ADR 0013)
+
+A pgvector run writes only eval/results/results-pgvector.json and RESULTS-pgvector.md; the ChromaDB baseline files,
+history.jsonl and TRENDS.md are never touched by it (SPEC-GAP-073). It needs DATABASE_URL and REDIS_URL in the
+environment, and removes every workspace it created.
 """
 
 import argparse
@@ -31,7 +37,7 @@ from eval import history, qasper, trend  # noqa: E402
 from eval.corpus import CORPUS_DIR, DOCS, QA_FILE  # noqa: E402
 from eval.injection_data import SAMPLES  # noqa: E402
 from eval.metrics import auroc, cites, classification_metrics, corrupt, has_keys, norm  # noqa: E402
-from src import config, injection_scanner, llm, retrieval, vectorstore  # noqa: E402
+from src import config, injection_scanner, llm, retrieval, storage  # noqa: E402
 from src.chunker import chunk_pages  # noqa: E402
 from src.generator import generate_answer, is_refusal  # noqa: E402
 from src.loader import load_pdf  # noqa: E402
@@ -53,13 +59,38 @@ def load_corpus_pages() -> list[dict]:
     return pages
 
 
-STORE = vectorstore.ChromaStore()
+def make_store(kind: str) -> Any:
+    """Build the vector store for `kind` regardless of what the environment says; config is restored afterwards."""
+    saved = config.VECTOR_STORE
+    config.VECTOR_STORE = kind
+    try:
+        return storage.make_vector_store()
+    finally:
+        config.VECTOR_STORE = saved
+
+
+STORE = make_store("chroma")  # import-time default is always Chroma; main() rebuilds it from --vector-store
+CREATED_WORKSPACES: list[str] = []  # every workspace build_index made, so a pgvector run can clear them all
 
 
 def build_index(pages: list[dict], chunk_size: int, chunk_overlap: int, strategy: str | None = None) -> str:
-    workspace = vectorstore.new_workspace_id()
-    vectorstore.add_chunks(workspace, chunk_pages(pages, chunk_size, chunk_overlap, strategy))
+    workspace = STORE.new_workspace()
+    CREATED_WORKSPACES.append(workspace)
+    STORE.add_chunks(workspace, chunk_pages(pages, chunk_size, chunk_overlap, strategy))
     return workspace
+
+
+def clear_created_workspaces() -> None:
+    """Remove every workspace this run built (server store only: the ChromaDB path lives in a throwaway temp dir)."""
+    failed = 0
+    for workspace in CREATED_WORKSPACES:
+        try:
+            STORE.clear(workspace)
+        except Exception:  # keep clearing the rest; report only a count, never the error text
+            failed += 1
+    CREATED_WORKSPACES.clear()
+    if failed:
+        print(f"warning: {failed} pgvector workspace(s) could not be cleared.", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +304,8 @@ def write_markdown(results: dict) -> str:
         f"checker model `{results['checker_model']}`",
         "",
     ]
+    if results.get("vector_store"):
+        lines += [f"Vector store: `{results['vector_store']}`", ""]
     if "retrieval" in results:
         r = results["retrieval"]
         lines += [
@@ -441,10 +474,34 @@ def main() -> None:
         default="free",
         help="'free' makes no Claude calls; 'all' also measures answers, trust and the AI scanner.",
     )
+    parser.add_argument(
+        "--vector-store",
+        choices=["chroma", "pgvector"],
+        default="chroma",
+        help="'pgvector' runs on the server store and writes only results-pgvector.json / RESULTS-pgvector.md.",
+    )
     args = parser.parse_args()
+    pgvector = args.vector_store == "pgvector"
     if args.report_only:
         rebuild_report()
         return
+    global STORE  # noqa: PLW0603 - the store is chosen once, here, before any index is built
+    default_store = STORE
+    saved = (config.VECTOR_STORE, config.STATE_BACKEND)
+    try:
+        config.VECTOR_STORE = args.vector_store
+        if pgvector:
+            config.STATE_BACKEND = "redis"  # the only state backend the app pairs with pgvector
+        STORE = storage.make_vector_store()
+        run(args, pgvector)
+    finally:
+        if pgvector:
+            clear_created_workspaces()
+        STORE = default_store  # do not leak the chosen store into the importing process
+        config.VECTOR_STORE, config.STATE_BACKEND = saved
+
+
+def run(args: argparse.Namespace, pgvector: bool) -> None:
     use_llm = args.suite == "all"
     if use_llm and llm.missing_key_message():
         sys.exit(llm.missing_key_message())
@@ -456,7 +513,7 @@ def main() -> None:
     commit = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=False
     ).stdout.strip()
-    results = {
+    results: dict[str, Any] = {
         "run_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "commit": commit or "unknown",
         "suite": args.suite,
@@ -504,16 +561,20 @@ def main() -> None:
         results["public_benchmark"] = {"status": "error", "reason": "The Qasper benchmark step failed."}
     results["claude_calls"] = llm.get_call_count()
 
+    suffix = "-pgvector" if pgvector else ""
+    if pgvector:
+        results["vector_store"] = "pgvector"
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    with open(os.path.join(RESULTS_DIR, "results.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(RESULTS_DIR, f"results{suffix}.json"), "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
         f.write("\n")  # end files with a newline (the end-of-file pre-commit hook requires it)
     markdown = write_markdown(results)
-    with open(os.path.join(RESULTS_DIR, "RESULTS.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(RESULTS_DIR, f"RESULTS{suffix}.md"), "w", encoding="utf-8") as f:
         f.write(markdown.rstrip("\n") + "\n")
     print(markdown)
-    record_history(results, dirty)
-    print(f"\nClaude calls made: {results['claude_calls']}. Full results: eval/results/results.json")
+    if not pgvector:  # a pgvector run never touches history.jsonl / TRENDS.md (SPEC-GAP-073, ADR 0010)
+        record_history(results, dirty)
+    print(f"\nClaude calls made: {results['claude_calls']}. Full results: eval/results/results{suffix}.json")
     if qasper_failure is not None:
         sys.exit(
             f"Qasper benchmark failed ({qasper_failure}). Other results were saved; see the error status in RESULTS.md."

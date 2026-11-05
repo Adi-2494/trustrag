@@ -12,6 +12,31 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Server backends for the `[server]` tests, so they run instead of skipping. Throwaway values: these databases
+    # exist only for this job and hold no real data. Images are pinned by digest like everything else.
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres
+          POSTGRES_DB: trustrag_test
+          POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d trustrag_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: valkey/valkey:9.1.3@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7
+        env:
+          VALKEY_EXTRA_FLAGS: --requirepass ci-throwaway-redis --maxmemory 64mb --maxmemory-policy noeviction
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "REDISCLI_AUTH=ci-throwaway-redis valkey-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TRUSTRAG_TEST_DATABASE_URL: postgresql://postgres:ci-throwaway-postgres@localhost:5432/trustrag_test # gitleaks:allow
+      TRUSTRAG_TEST_APP_ROLE_URL: postgresql://trustrag_app:ci-throwaway-app@localhost:5432/trustrag_test # gitleaks:allow
+      TRUSTRAG_TEST_REDIS_URL: redis://:ci-throwaway-redis@localhost:6379/0 # gitleaks:allow
     steps:
       # Actions are pinned to exact commits (the comment shows the version), so a moved tag can't change them.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,6 +47,22 @@ jobs:
 
       - name: Install dependencies (exact versions, hash-checked)
         run: pip install --require-hashes --no-deps -r requirements-dev.lock
+
+      # Runs the real docker/postgres-init.sh (same one compose uses) so the tests exercise the least-privilege
+      # `trustrag_app` role, not the superuser. psql ships on ubuntu-latest runners. Throwaway password, CI only.
+      - name: Initialise Postgres like production (extension, least-privilege app role, schema)
+        env:
+          PGHOST: localhost
+          PGPASSWORD: ci-throwaway-postgres # gitleaks:allow
+          POSTGRES_USER: postgres
+          POSTGRES_DB: trustrag_test
+        run: |
+          psql --version
+          umask 077
+          APP_PASSWORD_FILE="$RUNNER_TEMP/pg_app_password"
+          printf '%s' 'ci-throwaway-app' > "$APP_PASSWORD_FILE"
+          APP_PASSWORD_FILE="$APP_PASSWORD_FILE" bash docker/postgres-init.sh
+          rm -f "$APP_PASSWORD_FILE"
 
       - name: Lint and format (ruff)
         run: |

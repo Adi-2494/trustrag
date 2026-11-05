@@ -67,9 +67,9 @@ class TrustRAGService:
         password_login: LoginProvider | None = None,
     ) -> None:
         if store is None:
-            from src.vectorstore import ChromaStore  # imported lazily: ChromaDB is heavy and fakes don't need it
+            from src import storage  # imported lazily: ChromaDB / psycopg are heavy and fakes don't need them
 
-            store = ChromaStore()
+            store = storage.make_vector_store()
         self.store = store
         self.llm: LLMClient = llm or call_claude
         self._authenticator = authenticator
@@ -125,7 +125,10 @@ class TrustRAGService:
     def new_workspace(self, *, session: str | None = None) -> str:
         principal = self._principal(session)
         # drop abandoned anonymous workspaces and purge deleted account ones, whatever the ACCOUNTS_ENABLED flag
-        self.store.cleanup(keep=frozenset(state.live_owned_ids()), purge=frozenset(state.tombstoned_ids()))
+        if getattr(self.store, "resolves_cleanup_ids", False):
+            self.store.cleanup()  # server store: throttled, resolves live / deleted ids itself in SQL
+        else:
+            self.store.cleanup(keep=frozenset(state.live_owned_ids()), purge=frozenset(state.tombstoned_ids()))
         if principal is None:
             return self.store.new_workspace(persistent=False)
         workspace = self.store.new_workspace(persistent=True)

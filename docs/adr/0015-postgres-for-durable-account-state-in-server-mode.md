@@ -63,7 +63,9 @@ ADR keeps durable records out of Redis and puts them in the same Postgres server
 - Accounts, sessions and ownership work across hosts; every P6 guarantee is one Postgres transaction, tested against
   both backends with real concurrency (plan section 3.2).
 - File-permission controls of SPEC-GAP-044 (0700 / 0600) do not apply in server mode; password hashes, session-token
-  hashes and ownership rows are protected by the database credentials and by not publishing the database port. This
+  hashes and ownership rows are protected by the database credentials (password authentication on every connection,
+  including in-container socket and loopback: `scram-sha-256` via `POSTGRES_INITDB_ARGS`, ADR 0013, decided by the
+  human on 2026-11-05) and by not publishing the database port. This
   changes a THREAT_MODEL control (rows 27, 29): human gate.
 - Backups now mean the Postgres database (vectors and durable state), not `chroma_db/`. Losing it has the same effect
   as losing the SQLite state DB: account workspaces become unreachable.
@@ -78,6 +80,47 @@ Read while planning: `src/state.py` (every P6 function and its transaction), ADR
 SPEC-GAP-060, `tests/fakes.py::FakeAuthenticator` (account ids without `accounts` rows), `src/service.py`
 (`_authorize`, `new_workspace`, `clear`).
 
-Not verified: the database-clock functions and timeout parameters. Postgres `FOR UPDATE` / READ COMMITTED re-check behaviour and `pg_advisory_xact_lock` were not run here
+Not verified at planning time: the database-clock functions and timeout parameters. Postgres `FOR UPDATE` / READ COMMITTED re-check behaviour and `pg_advisory_xact_lock` were not run here
 (no Postgres available); they are from memory of the PostgreSQL documentation and are the subject of the concurrency
 tests in `docs/phases/p7-plan.md` section 3.2.
+
+### Measured after the P7 build (added 2026-11-05, task T8)
+
+**Tests.** As reported to the architect by the engineering manager for the build tasks (not re-run by the architect;
+the verifier's full-gate run in `docs/phases/p7-report.md` is authoritative): the full suite run against a throwaway
+local PostgreSQL 17 / pgvector 0.8.7 and Valkey 9.1.3 gave **644 passed**, before the docs and eval tasks. The
+guarantees of this ADR are covered by:
+- `tests/test_accounts.py`, `tests/test_ownership.py`, `tests/test_security.py`, `tests/test_anonymous_mode.py`,
+  `tests/test_pipeline.py`: the existing P6 suites, parametrised over `storage_backend` (`[local]` and `[server]`),
+  including `test_login_racing_password_reset_gets_no_surviving_session`,
+  `test_rehash_does_not_undo_concurrent_password_reset` and `test_upload_racing_owner_delete_never_leaves_reachable_data`.
+- `tests/test_server_state.py`: `test_create_session_and_set_password_serialise_under_real_concurrency` (guarantees 1
+  and 3), `test_concurrent_logins_never_exceed_session_cap` (cap, `seq` tie-break), `test_concurrent_workspace_creation_respects_cap`
+  (advisory lock), `test_concurrent_schema_initialisation_succeeds`, `test_skewed_host_cannot_extend_or_expire_sessions`
+  (DB clock), `test_server_state_never_contains_plain_password_or_token`, `test_server_session_token_stored_only_as_sha256`,
+  `test_server_mode_creates_no_sqlite_file`, `test_postgres_down_login_response_is_same_for_unknown_wrong_and_right`,
+  `test_stuck_account_lock_times_out_with_503_not_hang`, `test_app_db_role_is_not_superuser` (runs only when
+  `TRUSTRAG_TEST_APP_ROLE_URL` is set; whether it ran in the reported 644 was not verified by the architect).
+- `tests/integration/test_multi_host.py::test_session_from_one_container_works_on_the_other` and
+  `test_account_workspace_created_on_one_container_is_usable_on_the_other`: run by the verifier against the compose
+  `server` profile; no result is claimed here.
+These runs settle the planning-time "not verified" items above (`FOR UPDATE` serialisation, conditional-`UPDATE`
+re-check, `pg_advisory_xact_lock`, timeouts) as far as those tests exercise them.
+
+**Build choices that refine the Decision text** (read in `src/state_postgres.py`):
+- **`clock_timestamp()` rather than `now()`.** Every server-mode timestamp is `extract(epoch FROM clock_timestamp())`
+  (the time at which the statement runs), not `extract(epoch from now())` as written in the Decision (`now()` is the
+  transaction start time). A transaction that waited on a row lock therefore records the time after the wait.
+- **Session expiry re-based as DB time + the caller's remaining lifetime.** `create_session` stores
+  `created = last_seen = DB time` and `expires = DB time + (expires − time.time())`, i.e. the lifetime still remaining
+  on the API host's clock when the insert runs, not `expires − created` as written in the Decision. The two differ only
+  by the time between the caller computing `expires` and the insert. `SessionInfo.expires_at` stays host-computed and
+  informational.
+- `get_session_principal` judges expiry and idle time on the DB clock and returns `last_seen` translated into the
+  caller's clock (`now − (DB time − last_seen)`), so the caller's 60 s touch rule keeps working.
+- `ensure_schema` refuses with `StorageUnavailable` when the schema `config.PG_SCHEMA` does not exist; the app never
+  creates the schema (the init script does).
+- A unique violation is raised as `UniqueViolationError` (a `StorageUnavailable` subclass that keeps the connection);
+  `create_account` turns it into `DuplicateAccount`.
+- The login path maps every `StorageUnavailable` to `LoginRateLimited(1.0)` (429, `Retry-After: 1`), and a failed
+  refund after the session was created logs `auth.refund_failed` and is swallowed (`src/accounts.py`).

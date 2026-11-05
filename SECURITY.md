@@ -34,5 +34,11 @@ Include what you found, how to reproduce it, and the impact you expect. You can 
   must run with `--no-proxy-headers` (set in `docker-compose.yml`). The state database directory is owner-only.
   Users can only reach their own workspaces; anyone else gets "not found". Limits, such as targeted lockout and no
   MFA, are listed in [`THREAT_MODEL.md`](THREAT_MODEL.md).
-- **Backups:** `chroma_db/` holds vectors and the state database (accounts, sessions). Back it up before upgrading;
+- **Server mode (optional, P7):** the shared Postgres and Redis-protocol stores publish no ports, sit on an internal
+  Docker network the UI cannot reach, use password authentication (scram-sha-256, no `trust`), and the application
+  connects as a role that is not a superuser. Their URLs live in `.env.server`, read by the server API containers only.
+  Rate limits are shared across hosts and fail closed when a store is down; errors never show URLs or driver text.
+  Known limits (no TLS between containers, passwords visible to `docker inspect`, no Redis ACL, deleted text until
+  `VACUUM`) are in [`THREAT_MODEL.md`](THREAT_MODEL.md). Keep `~/.trustrag/server-secrets` private (directory 0700).
+- **Backups:** `chroma_db/` holds vectors and the state database (accounts, sessions). In server mode back up the Postgres volume instead (`pg_dump`, see the README). Back it up before upgrading;
   rolling back to v1.0 hides account workspaces but does not delete them.

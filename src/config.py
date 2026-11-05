@@ -136,6 +136,25 @@ LOGIN_BODY_MAX_BYTES = 4096
 PASSWORD_MIN_CHARS = 12
 PASSWORD_MAX_CHARS = 1024
 
+# Storage backends (P7, ADR 0013-0015). Local mode is chroma + sqlite; server mode is pgvector + redis.
+# Modules read these as `config.X` at call time. The URLs carry credentials: never log or echo them.
+VECTOR_STORE = SETTINGS.vector_store
+STATE_BACKEND = SETTINGS.state_backend
+DATABASE_URL = SETTINGS.database_url
+REDIS_URL = SETTINGS.redis_url
+PG_SCHEMA = "trustrag"
+REDIS_PREFIX = "trustrag:{t}:"  # {t} is a hash tag: all keys of one tenant map to one cluster slot
+EMBEDDING_DIM = 384  # all-MiniLM-L6-v2
+STATE_CLOCK = "store"  # "caller" only in tests; deliberately not an environment setting
+SERVER_CACHE_TTL_HOURS = 24
+PG_LOCK_TIMEOUT_MS = 5000
+PG_STATEMENT_TIMEOUT_MS = 15000
+PG_IDLE_IN_TRANSACTION_TIMEOUT_MS = 30000
+PG_MAX_CONNECTIONS_PER_PROCESS = 10
+PG_POOL_WAIT_SECONDS = 5
+REDIS_TIMEOUT_SECONDS = 5
+STORAGE_UNAVAILABLE_MESSAGE = "Storage is temporarily unavailable. Please try again."  # fixed: never driver text
+
 # ---------------------------------------------------------------------------
 # Injection scanner
 # ---------------------------------------------------------------------------

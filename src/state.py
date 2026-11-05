@@ -11,6 +11,10 @@ and session hashes, the state directory is 0700 and the DB and its -wal/-shm fil
 stored only as sha256 hex digests (hashed by the caller); plain passwords and tokens never reach this module.
 Every multi-step rule (session cap, workspace cap, login reservation) runs in ONE `BEGIN IMMEDIATE` transaction, so
 it holds across threads and across processes.
+
+P7 server mode (`config.STATE_BACKEND == "redis"`, ADR 0014 / 0015): every public function below keeps its name,
+signature and return shape and dispatches to `state_redis` (call window, login attempts) or `state_postgres`
+(accounts, sessions, ownership, caches). No SQLite file is opened then. A store failure raises `StorageUnavailable`.
 """
 
 import json
@@ -77,6 +81,23 @@ _P6_SCHEMA = (
 TOUCH_INTERVAL_SECONDS = 60  # last_seen is written at most this often per session, to avoid a write per request
 
 
+def _server() -> bool:
+    """True in server mode (`STATE_BACKEND=redis`): counters in Redis, durable state and caches in Postgres."""
+    return config.STATE_BACKEND == "redis"
+
+
+def _pg() -> Any:
+    from src import state_postgres  # lazy: local mode must not need psycopg
+
+    return state_postgres
+
+
+def _rd() -> Any:
+    from src import state_redis  # lazy: local mode must not need redis
+
+    return state_redis
+
+
 def _conn() -> sqlite3.Connection:
     path = config.STATE_DB
     conn = getattr(_local, "conn", None)
@@ -107,6 +128,8 @@ def _conn() -> sqlite3.Connection:
 
 def cache_get_many(namespace: str, keys: list[str]) -> dict[str, object]:
     """Return {key: value} for the keys that are cached in this namespace."""
+    if _server():
+        return _pg().cache_get_many(namespace, keys)  # type: ignore[no-any-return]
     if not keys:
         return {}
     found: dict[str, object] = {}
@@ -122,6 +145,9 @@ def cache_get_many(namespace: str, keys: list[str]) -> dict[str, object]:
 
 def cache_set_many(namespace: str, items: dict[str, object]) -> None:
     """Store several values in one atomic transaction."""
+    if _server():
+        _pg().cache_set_many(namespace, items)
+        return
     if not items:
         return
     conn = _conn()
@@ -143,6 +169,8 @@ def try_acquire_call(limit: int, window_seconds: int = 3600) -> float:
     Record one model call if fewer than `limit` happened in the last window (across all processes).
     Returns 0 if allowed, otherwise the seconds until a slot frees up.
     """
+    if _server():
+        return float(_rd().try_acquire_call(limit, window_seconds))
     conn = _conn()
     now = time.time()
     conn.execute("BEGIN IMMEDIATE")  # takes the write lock, so check-then-insert is atomic across processes
@@ -177,12 +205,26 @@ class DuplicateAccount(ValueError):
     """The username is already taken."""
 
 
+class StorageUnavailable(Exception):
+    """
+    A server-mode store (Postgres or Redis) failed or timed out. Deliberately NOT a ValueError (the API's 404
+    handler) and NOT an LLMError (the injection scanner would degrade to rules-only). The driver's own message can
+    contain hosts and credentials, so it is only ever reachable through `__cause__`; this class carries a fixed text.
+    """
+
+    def __init__(self, *args: object) -> None:
+        super().__init__(*(args or ("Storage is temporarily unavailable. Please try again.",)))
+
+
 # ------------------------------------------------------------------------------------------------ accounts
 _ACCOUNT_COLUMNS = "account_id, username, password_hash, created, disabled, password_changed"
 
 
 def create_account(account_id: str, username: str, password_hash: str, now: float | None = None) -> None:
     """Insert an account. `username` is already canonical; raises DuplicateAccount if it exists."""
+    if _server():
+        _pg().create_account(account_id, username, password_hash, now)
+        return
     stamp = time.time() if now is None else now
     try:
         with _write() as conn:
@@ -196,6 +238,8 @@ def create_account(account_id: str, username: str, password_hash: str, now: floa
 
 def get_account_by_username(username: str) -> dict[str, Any] | None:
     """The full account row (including the password hash) or None."""
+    if _server():
+        return _pg().get_account_by_username(username)  # type: ignore[no-any-return]
     row = (
         _conn()
         .execute(f"SELECT {_ACCOUNT_COLUMNS} FROM accounts WHERE username = ?", (username,))  # noqa: S608
@@ -209,12 +253,16 @@ def get_account_by_username(username: str) -> dict[str, Any] | None:
 
 def list_accounts() -> list[dict[str, Any]]:
     """Accounts for the admin CLI, oldest first. The password hash is deliberately not included."""
+    if _server():
+        return _pg().list_accounts()  # type: ignore[no-any-return]
     rows = _conn().execute("SELECT account_id, username, created, disabled FROM accounts ORDER BY created, username")
     return [{"account_id": a, "username": u, "created": c, "disabled": bool(d)} for a, u, c, d in rows.fetchall()]
 
 
 def set_password_hash(account_id: str, password_hash: str, now: float | None = None) -> bool:
     """Change the password and revoke every session of the account (sessions older than the change are dead)."""
+    if _server():
+        return bool(_pg().set_password_hash(account_id, password_hash, now))
     stamp = time.time() if now is None else now
     with _write() as conn:
         changed = conn.execute(
@@ -230,6 +278,8 @@ def rehash_password(account_id: str, old_hash: str, new_hash: str) -> bool:
     Swap in a stronger hash of the SAME password, only if the stored hash is still `old_hash` (compare-and-set).
     Not a password change: `password_changed` stays and no session is revoked. False = the hash changed meanwhile.
     """
+    if _server():
+        return bool(_pg().rehash_password(account_id, old_hash, new_hash))
     with _write() as conn:
         changed = conn.execute(
             "UPDATE accounts SET password_hash = ? WHERE account_id = ? AND password_hash = ?",
@@ -240,6 +290,8 @@ def rehash_password(account_id: str, old_hash: str, new_hash: str) -> bool:
 
 def set_disabled(account_id: str, disabled: bool) -> bool:
     """Disable / enable an account. Disabling revokes its sessions; its workspaces are kept."""
+    if _server():
+        return bool(_pg().set_disabled(account_id, disabled))
     with _write() as conn:
         changed = conn.execute(
             "UPDATE accounts SET disabled = ? WHERE account_id = ?", (int(disabled), account_id)
@@ -264,6 +316,8 @@ def create_session(
     given (a password login) the account's CURRENT password hash must still equal it, so a password reset that
     landed after the password was verified leaves no surviving session. False = not created.
     """
+    if _server():
+        return bool(_pg().create_session(token_hash, account_id, created, expires, max_per_account, expected_hash))
     with _write() as conn:
         row = conn.execute(
             "SELECT disabled, password_hash FROM accounts WHERE account_id = ?", (account_id,)
@@ -287,6 +341,8 @@ def get_session_principal(token_hash: str, now: float, idle_seconds: float) -> d
     {account_id, username, last_seen} for a live session, else None. Dead means: past the absolute expiry, idle longer than
     `idle_seconds`, account disabled, or created before the last password change. Expired rows are deleted.
     """
+    if _server():
+        return _pg().get_session_principal(token_hash, now, idle_seconds)  # type: ignore[no-any-return]
     conn = _conn()
     row = conn.execute(
         "SELECT s.account_id, a.username, s.created, s.last_seen, s.expires, a.disabled, a.password_changed"
@@ -310,6 +366,9 @@ def touch_session(token_hash: str, now: float) -> None:
     at least TOUCH_INTERVAL_SECONDS stale (see `get_session_principal`'s `last_seen`), because even an UPDATE that
     matches nothing takes the write lock; the `last_seen` guard keeps two racing touches from both writing.
     """
+    if _server():
+        _pg().touch_session(token_hash, now)
+        return
     _conn().execute(
         "UPDATE sessions SET last_seen = ? WHERE token_hash = ? AND last_seen <= ?",
         (now, token_hash, now - TOUCH_INTERVAL_SECONDS),
@@ -317,12 +376,18 @@ def touch_session(token_hash: str, now: float) -> None:
 
 
 def delete_session(token_hash: str) -> None:
+    if _server():
+        _pg().delete_session(token_hash)
+        return
     with _write() as conn:
         conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
 
 
 def prune_expired(now: float, idle_seconds: float, attempt_window_seconds: float) -> None:
     """Drop sessions past their absolute or idle limit and login attempts older than the window (SPEC-GAP-051)."""
+    if _server():  # login attempts live in Redis and expire there by themselves
+        _pg().prune_expired(now, idle_seconds)
+        return
     with _write() as conn:
         conn.execute("DELETE FROM sessions WHERE expires <= ? OR last_seen < ?", (now, now - idle_seconds))
         conn.execute("DELETE FROM login_attempts WHERE ts < ?", (now - attempt_window_seconds,))
@@ -331,6 +396,8 @@ def prune_expired(now: float, idle_seconds: float, attempt_window_seconds: float
 # ------------------------------------------------------------------------------------------------ workspaces
 def add_owned_workspace(workspace: str, account_id: str, limit: int, now: float | None = None) -> bool:
     """Record ownership unless the account already has `limit` live (not tombstoned) workspaces. False = at cap."""
+    if _server():
+        return bool(_pg().add_owned_workspace(workspace, account_id, limit, now))
     stamp = time.time() if now is None else now
     with _write() as conn:
         (live,) = conn.execute(
@@ -347,12 +414,16 @@ def add_owned_workspace(workspace: str, account_id: str, limit: int, now: float 
 
 def workspace_record(workspace: str) -> tuple[str, int] | None:
     """(owner account_id, deleted flag) or None when no ownership row exists."""
+    if _server():
+        return _pg().workspace_record(workspace)  # type: ignore[no-any-return]
     row = _conn().execute("SELECT account_id, deleted FROM workspaces WHERE workspace = ?", (workspace,)).fetchone()
     return None if row is None else (str(row[0]), int(row[1]))
 
 
 def list_owned_workspaces(account_id: str) -> list[str]:
     """Live workspace ids of one account, oldest first."""
+    if _server():
+        return _pg().list_owned_workspaces(account_id)  # type: ignore[no-any-return]
     rows = _conn().execute(
         "SELECT workspace FROM workspaces WHERE account_id = ? AND deleted = 0 ORDER BY created, workspace",
         (account_id,),
@@ -362,6 +433,8 @@ def list_owned_workspaces(account_id: str) -> list[str]:
 
 def list_owned_workspace_info(account_id: str) -> list[tuple[str, float]]:
     """(workspace id, created epoch seconds) of one account's live workspaces, oldest first, ties by id."""
+    if _server():
+        return _pg().list_owned_workspace_info(account_id)  # type: ignore[no-any-return]
     rows = _conn().execute(
         "SELECT workspace, created FROM workspaces WHERE account_id = ? AND deleted = 0 ORDER BY created, workspace",
         (account_id,),
@@ -371,16 +444,22 @@ def list_owned_workspace_info(account_id: str) -> list[tuple[str, float]]:
 
 def live_owned_ids() -> set[str]:
     """Every live owned workspace id (cleanup must keep these whatever their age)."""
+    if _server():
+        return _pg().live_owned_ids()  # type: ignore[no-any-return]
     return {str(r[0]) for r in _conn().execute("SELECT workspace FROM workspaces WHERE deleted = 0")}
 
 
 def tombstoned_ids() -> set[str]:
     """Every deleted workspace id (cleanup purges their vectors; the rows stay so ids are never reused)."""
+    if _server():
+        return _pg().tombstoned_ids()  # type: ignore[no-any-return]
     return {str(r[0]) for r in _conn().execute("SELECT workspace FROM workspaces WHERE deleted = 1")}
 
 
 def tombstone_workspace(workspace: str, account_id: str) -> bool:
     """Mark the workspace deleted if `account_id` owns it. The row is never removed. True = newly tombstoned."""
+    if _server():
+        return bool(_pg().tombstone_workspace(workspace, account_id))
     with _write() as conn:
         changed = conn.execute(
             "UPDATE workspaces SET deleted = 1 WHERE workspace = ? AND account_id = ? AND deleted = 0",
@@ -400,6 +479,8 @@ def reserve_login_attempt(
     sharing a new attempt id (returns (attempt_id, 0.0)). Concurrent wrong guesses therefore cannot all pass the
     check before any is recorded, in this process or another.
     """
+    if _server():
+        return _rd().reserve_login_attempt(keys, limits, now)  # type: ignore[no-any-return]
     with _write() as conn:
         retry_after = 0.0
         for key in keys:
@@ -422,6 +503,9 @@ def reserve_login_attempt(
 
 def refund_login_attempt(attempt_id: str, keys: Sequence[str]) -> None:
     """Remove only this attempt's rows for `keys` (success, or the hashing queue was full); others are untouched."""
+    if _server():
+        _rd().refund_login_attempt(attempt_id, keys)
+        return
     if not keys:
         return
     placeholders = ",".join("?" * len(keys))  # only "?" markers are built into the SQL; values are bound

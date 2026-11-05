@@ -1,9 +1,11 @@
-# 0014 - Opt-in Redis backend for shared rate limits; caches in Postgres (amends 0005)
+# 0014 - Opt-in Redis-protocol (Valkey) backend for shared rate limits; caches in Postgres (amends 0005)
 
 **Status:** Accepted (P7; approved by the human, 2026-11-05). Drafted 2026-11-05 and revised the same day after the security review of the plan,
 `docs/phases/p7-plan.md` section 8, findings 2, 3, 8, 9, 12, 14). Amends ADR 0005 if accepted; SQLite stays the
 default and ADR 0005 is not superseded. Changing the status of ADR 0005 is a human action. (The file name keeps the
-first draft's wording; after the review the caches no longer live in Redis.)
+first draft's wording; after the review the caches no longer live in Redis. The server chosen on 2026-11-05 is
+Valkey, a Redis-protocol compatible server; see Decision. "Redis" below means the Redis protocol / data model, and
+the setting names `STATE_BACKEND=redis`, `REDIS_URL` and `REDIS_PREFIX` are kept.)
 
 ## Context
 - SPEC P7: "state backend on Redis; selected by settings"; SQLite stays the default (SPEC-GAP-009).
@@ -26,8 +28,18 @@ first draft's wording; after the review the caches no longer live in Redis.)
   become `0` (finding 8, unconfirmed); a Redis error mapped to `LLMError` would silently degrade the injection scanner
   to rules-only (finding 14).
 - `redis` (redis-py) is not installed in `.venv` and not in the locks.
+- Licence (SPEC-GAP-065): Redis server releases after the 7.2 line are no longer distributed under BSD-3-Clause
+  (Redis 7.4: RSALv2 / SSPLv1; Redis 8: AGPLv3 / RSALv2 / SSPLv1 - from memory, `docs/phases/p7-dependency-proposal.md`
+  section 2). Valkey is the BSD-3-Clause fork of Redis 7.2.4 and speaks the same protocol.
 
 ## Decision
+- **Server: Valkey, client: redis-py** (SPEC-GAP-064, -065, decided by the human on 2026-11-05). The counter server
+  is `valkey/valkey:9.1.3@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7` (BSD-3-Clause),
+  pinned by digest in compose and CI. Reason: licence - it keeps the deployment on a permissive licence with no
+  AGPL/SSPL/RSAL review, while staying Redis-protocol compatible, so the Python client is redis-py (`redis==8.1.0`,
+  MIT) and the design below (Lua scripts, `TIME`, ZSETs, `MULTI`/`EXEC`, AOF, `maxmemory`) is unchanged. Valkey's
+  image ships `redis-cli` as a link to `valkey-cli`, so the healthcheck wording below holds. Any other
+  Redis-protocol server is a change to this ADR.
 - **The public function set of `src/state.py` is the interface.** No new Protocol. `state.py` keeps its SQLite code
   and dispatches each public function by `config.STATE_BACKEND`, read at call time: `sqlite` (default) or `redis`.
   In `redis` mode no SQLite file is created.
@@ -80,7 +92,9 @@ first draft's wording; after the review the caches no longer live in Redis.)
   The trust boundary now includes those credentials (THREAT_MODEL delta).
 - A Redis crash loses at most about one second of writes (AOF `everysec`). Accepted residual.
 - Cache entries in server mode expire after 24 h, so re-uploading the same file a day later costs new OCR/scan calls.
-- New dependency (`redis`) and image: human gates. Licence/fork choice: SPEC-GAP-065.
+- New dependency (`redis==8.1.0`) and image (Valkey 9.1.3, by digest): approved by the human on 2026-11-05
+  (SPEC-GAP-064, -065); installing it and regenerating the locks remain human gates. A future switch back to Redis
+  itself needs a licence review and a new ADR.
 
 ## Evidence
 Commands run while planning (read-only):
@@ -91,6 +105,46 @@ Commands run while planning (read-only):
 - `src/injection_scanner.py:234`: `except LLMError:` only.
 - `src/accounts.py::PasswordLogin.login`: `refund_login_attempt` runs after `start_session`.
 
-Not verified (nothing installed, no server): redis-py API names and typing; Lua `TIME` use inside scripts; the
+- `docs/phases/p7-dependency-proposal.md` (devops, 2026-11-05): Valkey 9.1.3 digest and amd64/arm64 platforms from
+  `docker buildx imagetools inspect`; Valkey licence BSD-3-Clause from the GitHub API; config `include` +
+  `requirepass`, `noeviction`, AOF and `REDISCLI_AUTH` healthcheck checked in a short-lived container. The Redis 7.4 / 8
+  licence terms are from memory in that document (not verified).
+
+Not verified at planning time (nothing installed, no server): redis-py API names and typing; Lua `TIME` use inside scripts; the
 integer conversion of Lua number replies; the Redis configuration directives. Each is exercised by a named test in
 `docs/phases/p7-plan.md` section 3 on the first run against a real Redis.
+
+### Measured after the P7 build (added 2026-11-05, task T8)
+
+**Tests.** As reported to the architect by the engineering manager for the build tasks (not re-run by the architect;
+the verifier's full-gate run in `docs/phases/p7-report.md` is authoritative): the full suite run against a throwaway
+local Valkey 9.1.3 and PostgreSQL 17 / pgvector 0.8.7 gave **644 passed**, before the docs and eval tasks. The
+decisions of this ADR are covered by:
+- `tests/test_server_state.py`: `test_refused_call_never_returns_zero_wait`,
+  `test_login_refusal_with_subsecond_retry_is_still_refused` (string replies, 1 s floor),
+  `test_global_window_prune_does_not_drop_user_or_client_rows`, `test_refused_reservation_inserts_no_rows_for_any_key`,
+  `test_refund_removes_only_this_attempts_rows` (script atomicity), `test_skewed_host_cannot_prune_other_hosts_attempts`
+  (`TIME`), `test_redis_holds_only_counter_keys`, `test_cache_entries_have_ttl`, `test_ocr_cache_entries_expire`
+  (caches in Postgres, 24 h), `test_redis_down_model_call_is_refused`, `test_call_limit_store_error_aborts_upload_not_rules_only`,
+  `test_redis_down_login_gives_same_429_and_runs_no_kdf`, `test_refund_failure_after_session_does_not_503`,
+  `test_admin_cli_storage_error_prints_fixed_message` (fail closed).
+- `tests/test_architecture.py::test_rate_limit_is_shared_across_processes` and
+  `tests/test_accounts.py::test_login_rate_limit_is_shared_across_processes`, parametrised `[server]` (one Valkey shared
+  by several processes; P7-AC2 in CI).
+- `tests/integration/test_multi_host.py` (two real API containers, P7-AC2 over HTTP): run by the verifier, not in CI;
+  no result is claimed here.
+- `tests/test_security.py` compose checks (`maxmemory`, `noeviction`, `appendonly`, no password on a command line).
+These runs settle the planning-time "not verified" items above (redis-py API, Lua `TIME`, reply handling) as far as
+those tests exercise them; whether Lua number replies are truncated was not tested directly, because the scripts never
+return bare numbers. Installed client checked by the architect: `redis 8.1.0` (`.venv`).
+
+**Build notes** (read in `src/state_redis.py`, `src/accounts.py`, `docker/redis.conf`, `docker-compose.yml`):
+- Both scripts accept an optional caller time in `ARGV` that is used only when `config.STATE_CLOCK == "caller"`;
+  otherwise the argument is empty and the script reads `TIME`.
+- An unexpected script reply (not `allowed` / `refused` / `reserved` with this attempt id) raises
+  `StorageUnavailable`; it is never read as "allowed".
+- On the login path `StorageUnavailable` becomes `LoginRateLimited(1.0)`, so the 429 carries `Retry-After: 1`, and the
+  event `auth.storage_unavailable` (no username) is logged.
+- The CI job (`.github/workflows/tests.yml`) starts Valkey with `VALKEY_EXTRA_FLAGS` including `--requirepass` and a
+  throwaway password, and its health command sets `REDISCLI_AUTH` inline. That is CI-only and throwaway; the compose
+  `server` profile keeps the password in the mounted secret file as decided.
