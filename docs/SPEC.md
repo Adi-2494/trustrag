@@ -30,7 +30,7 @@ Order chosen by risk: cheapest and most reversible first, paid infrastructure la
 | P5 | Public benchmark evaluation + eval trend report | draft |
 | P6 | User accounts and persistent workspaces | draft |
 | P7 | Server-based storage (pgvector, Redis) for multi-host | draft |
-| P8 | Cloud deployment with HTTPS and SSO | draft — blocked on human decisions |
+| P8 | Cloud deployment with HTTPS and SSO | draft — decisions made by the human 2026-11-06 (SPEC-GAP-007, -008, -010); plan `docs/phases/p8-plan.md` awaiting approval |
 
 ### P5 — Public benchmark evaluation + eval trend report
 
@@ -79,12 +79,18 @@ Acceptance criteria:
 
 ### P8 — Cloud deployment with HTTPS and SSO
 
-Goal: a deployable reference setup. Blocked until cloud provider, SSO provider and budget are decided
-(SPEC-GAP-007, -008). Until then only provider-neutral artefacts may be produced.
+Goal: a deployable reference setup. Decided by the human on 2026-11-06: Oracle Cloud "Always Free" Ampere A1 VM,
+$0 budget (SPEC-GAP-007); Tailscale free personal plan for SSO and HTTPS via `tailscale serve`, no public exposure
+(SPEC-GAP-008); subscription use only in a private single-user mode (SPEC-GAP-010, ADR 0016).
 
 Acceptance criteria (provisional):
 - P8-AC1: HTTPS only; HTTP redirects; security headers set.
 - P8-AC2: SSO login maps to P6 accounts.
-- P8-AC3: Cloud config uses an API-key provider; `claude_code` provider is refused (ADR 0007).
+- P8-AC3 (amended — decided by the human 2026-11-06, final wording confirmed at the P8 gate): A multi-user or public
+  cloud configuration uses an API-key provider (`anthropic` or `bedrock`) and startup refuses `claude_code`.
+  `claude_code` (the owner's own subscription) is allowed only in an explicit private single-user cloud mode:
+  access only through Tailscale with the trusted identity, exactly one account; startup refuses `claude_code`
+  otherwise (for example when more than one account exists or the private-mode setting is off) (ADR 0007 as amended
+  by ADR 0016).
 - P8-AC4: Secrets come from the platform's secret store, never from the image or repo.
 - P8-AC5: Deployment is reproducible from the repo plus documented manual steps; no step is done by Claude.
