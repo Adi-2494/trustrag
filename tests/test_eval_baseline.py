@@ -7,6 +7,8 @@ import copy
 import json
 import pathlib
 
+import pytest
+
 from src import config
 from tests.fakes import FakeStore
 from tests.qasper_support import mini_subset
@@ -136,3 +138,70 @@ def test_makefile_eval_free_and_eval_lines_are_unchanged():
     assert any(ln.startswith("eval-free:") for ln in lines) and any(ln.startswith("eval:") for ln in lines)
     text = "\n".join(lines)
     assert "eval-download-qasper:" in text and "python -m eval.qasper_download" in text
+
+
+# ---------------------------------------------------------------------------- P7-AC3 (docs/phases/p7-plan.md 3.4)
+def _run_main(run_eval):
+    try:
+        run_eval.main()
+    except SystemExit as exc:
+        assert exc.code in (None, 0), f"run_eval exited with {exc.code!r}"
+
+
+def test_pgvector_run_writes_separate_files_and_leaves_baseline_untouched(tmp_path, monkeypatch):
+    """P7-AC3 (wiring): `--vector-store pgvector` selects pgvector and writes only results-pgvector.json / RESULTS-pgvector.md."""
+    from tests.test_public_benchmark import _patch_run_eval
+
+    run_eval, _qasper, _paid, results_dir = _patch_run_eval(
+        monkeypatch, tmp_path, ["--suite", "free", "--vector-store", "pgvector"]
+    )
+    monkeypatch.setattr(config, "VECTOR_STORE", "chroma", raising=False)  # restored after the test
+    seen = {}
+
+    def build_index(*args, **kwargs):
+        seen["vector_store"] = config.VECTOR_STORE
+        return "ws"
+
+    monkeypatch.setattr(run_eval, "build_index", build_index)
+    _run_main(run_eval)
+    assert seen == {"vector_store": "pgvector"}
+    assert (results_dir / "results-pgvector.json").is_file() and (results_dir / "RESULTS-pgvector.md").is_file()
+    written = sorted(p.name for p in results_dir.iterdir())
+    for baseline in ("results.json", "RESULTS.md", "history.jsonl", "TRENDS.md"):
+        assert baseline not in written, f"{baseline} must not be touched by a pgvector run: {written}"
+
+
+def test_chroma_results_unchanged_after_store_refactor(tmp_path, monkeypatch):
+    """P7-AC3 (guard): a default run still uses ChromaDB and writes exactly the v1.0 result files (no pgvector files)."""
+    from eval import run_eval as eval_module
+    from src.vectorstore import ChromaStore
+    from tests.test_public_benchmark import _patch_run_eval
+
+    assert isinstance(eval_module.STORE, ChromaStore)
+    run_eval, _qasper, _paid, results_dir = _patch_run_eval(monkeypatch, tmp_path, ["--suite", "free"])
+    _run_main(run_eval)
+    written = sorted(p.name for p in results_dir.iterdir())
+    assert "results.json" in written and "RESULTS.md" in written
+    assert not [n for n in written if "pgvector" in n.lower()]
+    assert getattr(config, "VECTOR_STORE", "chroma") == "chroma"
+
+
+def test_makefile_has_eval_free_pgvector_target():
+    """P7-AC3 (wiring): `make eval-free-pgvector` exists and runs the free suite on pgvector; old targets are unchanged."""
+    lines = (ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
+    start = next((i for i, ln in enumerate(lines) if ln.startswith("eval-free-pgvector:")), None)
+    assert start is not None, "no eval-free-pgvector target"
+    recipe = [ln for ln in lines[start + 1 :] if ln.startswith("\t")][:3]
+    assert any("python -m eval.run_eval --suite free --vector-store pgvector" in ln for ln in recipe), recipe
+    assert "\tpython -m eval.run_eval --suite free" in lines  # the original target line is still exact
+
+
+def test_pgvector_results_within_tolerance_of_baseline():
+    """P7-AC3 (measured, SPEC-GAP-073): recall@4 within 1 point and MRR within 0.01 of the ChromaDB baseline, once generated."""
+    path = ROOT / "eval" / "results" / "results-pgvector.json"
+    if not path.is_file():
+        pytest.skip("eval/results/results-pgvector.json not generated yet (make eval-free-pgvector, verifier step)")
+    measured = json.loads(path.read_text(encoding="utf-8"))["retrieval"]
+    baseline = LIVE["retrieval"]
+    assert abs(measured["recall_at_k"] - baseline["recall_at_k"]) <= 0.01 + 1e-9
+    assert abs(measured["mrr"] - baseline["mrr"]) <= 0.01 + 1e-9

@@ -167,7 +167,18 @@ class PasswordLogin:
         self.authenticator: Authenticator = authenticator if authenticator is not None else SessionAuthenticator()
 
     def login(self, raw_body: bytes, client_key: str | None) -> SessionInfo:
-        """Raises LoginFailed (401) or LoginRateLimited (429). `client_key` None = address unknown: no client bucket."""
+        """Raises LoginFailed (401) or LoginRateLimited (429). `client_key` None = address unknown: no client bucket.
+
+        A storage outage anywhere on this path is the same 429 whatever the credentials (SPEC-GAP-082): a different
+        answer would tell an attacker which usernames exist or which password was right.
+        """
+        try:
+            return self._login(raw_body, client_key)
+        except state.StorageUnavailable:
+            event("auth.storage_unavailable")
+            raise LoginRateLimited(1.0) from None
+
+    def _login(self, raw_body: bytes, client_key: str | None) -> SessionInfo:
         # 1. Shape. A bad shape still costs a reservation (client + global keys only) and one dummy hash.
         parsed = _parse_body(raw_body)
         keys: list[str] = []
@@ -226,9 +237,16 @@ class PasswordLogin:
         except LoginFailed:  # disabled between the check and the insert
             event("auth.login_failed")
             raise
-        state.refund_login_attempt(attempt, refundable)
+        _refund_after_session(attempt, refundable)
         event("auth.login_succeeded", account_id=account_id)
         return info
+
+
+def _refund_after_session(attempt: str, keys: list[str]) -> None:
+    try:
+        state.refund_login_attempt(attempt, keys)
+    except state.StorageUnavailable:
+        event("auth.refund_failed")  # the session exists; failing the login now would hide a live session
 
 
 # ------------------------------------------------------------------------------------------------ admin
@@ -339,6 +357,11 @@ def main(
                 print(f"{account['username']}\t{status}\tcreated {stamp} UTC")
     except AccountError as error:
         print(f"Error: {error}", file=sys.stderr)
+        return 1
+    except state.StorageUnavailable:
+        print(
+            f"Error: {config.STORAGE_UNAVAILABLE_MESSAGE}", file=sys.stderr
+        )  # fixed text: no driver message, no traceback
         return 1
     return 0
 

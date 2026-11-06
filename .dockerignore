@@ -1,5 +1,8 @@
 # Secrets - never copy into the image
 .env
+.env.server
+secrets/
+*.secret
 
 # Local environments, data and caches
 venv/

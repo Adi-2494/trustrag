@@ -5,17 +5,22 @@ Anything an operator may change per deployment lives here; a bad value (unknown 
 unknown risk level) fails fast with a clear error instead of misbehaving later.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, ModelWrapValidatorHandler, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Provider = Literal["claude_code", "anthropic", "bedrock"]
 _RISKS = ("HIGH", "MEDIUM", "LOW")
+_PG_SCHEMES = ("postgresql://", "postgres://")
+_REDIS_SCHEMES = ("redis://", "rediss://")
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+    )
 
     llm_provider: Provider = "claude_code"
     aws_region: str = "us-east-1"
@@ -43,6 +48,12 @@ class Settings(BaseSettings):
     max_workspaces_per_account: int = Field(default=10, gt=0, le=1000)
     max_sessions_per_account: int = Field(default=10, gt=0, le=100)
 
+    # Server mode (P7, ADR 0013-0015): opt-in. URLs carry credentials, so they are never echoed in an error.
+    vector_store: Literal["chroma", "pgvector"] = "chroma"
+    state_backend: Literal["sqlite", "redis"] = "sqlite"
+    database_url: str = Field(default="", repr=False)
+    redis_url: str = Field(default="", repr=False)
+
     @field_validator("llm_provider", mode="before")
     @classmethod
     def _lower(cls, value: str) -> str:
@@ -57,6 +68,35 @@ class Settings(BaseSettings):
         if unknown:
             raise ValueError(f"unknown risk level(s) {unknown}; use HIGH, MEDIUM and/or LOW")
         return risks
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _check_backends(cls, data: Any, handler: ModelWrapValidatorHandler["Settings"]) -> "Settings":
+        settings = handler(data)
+        problem = _backend_problem(settings)
+        if problem is not None:
+            # Built by hand so the error carries no `input`: a pydantic error would repeat the URLs (credentials).
+            raise ValidationError.from_exception_data(
+                "Settings",
+                [InitErrorDetails(type=PydanticCustomError("backend_settings", problem), loc=(), input="")],
+            )
+        return settings
+
+
+def _backend_problem(settings: Settings) -> str | None:
+    """A fixed sentence naming the setting; never the URL, host, user or password."""
+    if (settings.vector_store, settings.state_backend) not in (("chroma", "sqlite"), ("pgvector", "redis")):
+        return "vector_store and state_backend must be chroma+sqlite (local) or pgvector+redis (server)"
+    if settings.vector_store == "pgvector":
+        if not _has_scheme(settings.database_url, _PG_SCHEMES):
+            return "database_url is required and must start with postgresql:// or postgres://"
+        if not _has_scheme(settings.redis_url, _REDIS_SCHEMES):
+            return "redis_url is required and must start with redis:// or rediss://"
+    return None
+
+
+def _has_scheme(url: str, schemes: tuple[str, ...]) -> bool:
+    return url.startswith(schemes) and " " not in url
 
 
 def load_settings() -> Settings:

@@ -46,6 +46,9 @@ from tests.p6_support import (
     sign_in,
 )
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 ROOT = Path(__file__).resolve().parent.parent
 USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{2,31}")
 
@@ -238,6 +241,7 @@ def _all_state_bytes() -> bytes:
     return b"".join(p.read_bytes() for p in sorted(Path(config.STATE_DB).parent.glob(Path(config.STATE_DB).name + "*")))
 
 
+@pytest.mark.local_only
 def test_state_db_never_contains_plain_password_or_token(fast_kdf):
     """P6-AC2 / threat 27: neither passwords (right or wrong) nor session tokens appear in the DB or its WAL."""
     from src.accounts import LoginFailed
@@ -253,6 +257,7 @@ def test_state_db_never_contains_plain_password_or_token(fast_kdf):
         assert secret.encode() not in blob
 
 
+@pytest.mark.local_only
 def test_session_token_stored_only_as_sha256(fast_kdf):
     """P6-AC2 / threat 29: `sessions.token_hash` is sha256(token); the token itself is stored nowhere."""
     import sqlite3
@@ -356,13 +361,13 @@ def test_login_is_rate_limited_per_client_address(fast_kdf, clock):
 
 def _child_logins(args):
     """Runs in a spawned process: wrong logins for one user against the shared DB; returns (failed, limited, kdf)."""
-    db_path, username, attempts, tag = args
+    snapshot, username, attempts, tag = args
     import hashlib as child_hashlib
 
     from src import config as child_config
+    from tests.server_support import apply_snapshot
 
-    child_config.STATE_DB = db_path
-    child_config.CHROMA_DIR = os.path.dirname(db_path)
+    apply_snapshot(snapshot)  # P7: the parent's backend (SQLite file, or the shared Postgres + Redis)
     child_config.SCRYPT_N = 2**4
     child_config.LOGIN_MAX_PER_SECOND = 1000
     kdf_calls, real = [0], child_hashlib.scrypt
@@ -387,7 +392,9 @@ def _child_logins(args):
 
 
 def _run_processes(username: str) -> list[tuple[int, int, int]]:
-    jobs = [(config.STATE_DB, username, 4, f"p{n}") for n in range(4)]
+    from tests.server_support import child_snapshot
+
+    jobs = [(child_snapshot(), username, 4, f"p{n}") for n in range(4)]
     with multiprocessing.get_context("spawn").Pool(4) as pool:
         return pool.map(_child_logins, jobs)
 
@@ -675,6 +682,7 @@ def test_admin_cli_manages_accounts(fast_kdf, capsys):
 
 # ---------------------------------------------------------------------------- files, parameters, settings
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+@pytest.mark.local_only
 def test_state_db_dir_and_files_are_owner_only(monkeypatch, tmp_path):
     """P6-AC2 / threat 27 (review #11, SPEC-GAP-044): dir 0700, DB and -wal/-shm 0600; old 0644 files are tightened."""
     from src import state

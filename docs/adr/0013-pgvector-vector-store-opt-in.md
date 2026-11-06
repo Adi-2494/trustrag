@@ -75,6 +75,15 @@ superseded. Changing the status of ADR 0003 is a human action.
     `search_path` is `trustrag, public` (the `vector` type lives in `public`), set with `psycopg.sql.Identifier`.
   - SQL text is never built from values with f-strings or `%`; values are always bound parameters, identifiers only
     via `psycopg.sql.Identifier`.
+- **Server image and client pin** (SPEC-GAP-064, -065, -086, decided by the human on 2026-11-05):
+  `pgvector/pgvector:0.8.7-pg17-bookworm@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8`
+  (PostgreSQL 17, pgvector 0.8.7), pinned by digest in compose and CI; client `psycopg[binary]==3.3.6` (LGPL-3.0-only,
+  used unmodified as a dynamically imported library; licence accepted by the human).
+  - **Password authentication only, everywhere:** `POSTGRES_HOST_AUTH_METHOD=trust` stays forbidden, and the server
+    is initialised with `POSTGRES_INITDB_ARGS="--auth-local=scram-sha-256 --auth-host=scram-sha-256"`. Without
+    it the image writes `trust` for the unix socket, `127.0.0.1` and `::1`, so anyone with `docker exec` into the
+    database container could connect without a password (`docs/phases/p7-dependency-proposal.md` section 3). The
+    setting only applies when an empty data volume is first initialised; an existing volume keeps its `pg_hba.conf`.
 
 ## Consequences
 - Several API containers on several hosts can share one vector store. ChromaDB + SQLite remain the default; a laptop
@@ -89,8 +98,9 @@ superseded. Changing the status of ADR 0003 is a human action.
 - Exact search scales linearly with a workspace's chunk count; acceptable at P7 sizes, revisit with an ADR if not.
 - Switching `VECTOR_STORE` does not migrate data: ChromaDB data stays on disk untouched, the new store starts empty
   (SPEC-GAP-074).
-- New dependency (`psycopg`) and new container image (Postgres with pgvector): human gates (lock regeneration,
-  compose change).
+- New dependency (`psycopg[binary]==3.3.6`) and new container image (`pgvector/pgvector:0.8.7-pg17-bookworm`, by
+  digest): approved by the human on 2026-11-05; installing, lock regeneration and the compose change remain human
+  gates. psycopg's LGPL-3.0 licence was accepted by the human.
 
 ## Evidence
 Commands run while planning (read-only):
@@ -101,7 +111,79 @@ Commands run while planning (read-only):
 - `chromadb/utils/embedding_functions/onnx_mini_lm_l6_v2.py`: `MODEL_NAME = "all-MiniLM-L6-v2"`, embeddings are
   normalised before return.
 
-Not verified: psycopg 3 defaults (autocommit, transaction context manager, error classes) and the timeout
+- `docs/phases/p7-dependency-proposal.md` (devops, 2026-11-05): image digest and platforms from
+  `docker buildx imagetools inspect`; default `pg_hba.conf` has `trust` for socket and loopback, and with the
+  `POSTGRES_INITDB_ARGS` above every line became `scram-sha-256` and passwordless socket and TCP logins failed;
+  `vector.control` is not `trusted`, so the init script (superuser) creates the extension. psycopg 3.3.6 wheels for
+  cp311 on x86_64 / aarch64 from PyPI JSON; that document's other psycopg checks were run on 3.3.8, not 3.3.6.
+
+Not verified at planning time: psycopg 3 defaults (autocommit, transaction context manager, error classes) and the timeout
 parameters were not run here. pgvector's `<=>` operator semantics and the `vector(n)` text input format were not run here (no
 Postgres available); they are from the pgvector documentation as I remember it and must be confirmed by the first
 contract test run. Retrieval numbers on pgvector: to be measured in P7 (P7-AC3); none are claimed here.
+
+### Measured after the P7 build (added 2026-11-05, task T8)
+
+**Retrieval eval (P7-AC3).** `make eval-free-pgvector` (`python -m eval.run_eval --suite free --vector-store
+pgvector`), run on 2026-11-05 at 02:55:47, wrote `eval/results/results-pgvector.json` and
+`eval/results/RESULTS-pgvector.md`; the ChromaDB run of the same day (02:53:10) is in `eval/results/results.json`.
+Read from the two JSON files:
+
+| Measure | ChromaDB (`results.json`) | pgvector (`results-pgvector.json`) |
+|---|---|---|
+| Self-authored suite, 56 questions, default settings (hybrid, top-4): recall@4 | 100% (`1.0`) | 100% (`1.0`) |
+| same: MRR | 0.973 | 0.973 |
+| Ablation (12 rows: chunk size 500/800/1200 × fixed/section × semantic/hybrid) | - | all 12 rows identical to ChromaDB (`ablation` lists compare equal) |
+| Qasper v0.3 dev, 50 papers, 138 answerable questions: recall@4 | 0.529 | 0.529 |
+| same: MRR | 0.362 | 0.362 |
+
+The whole `public_benchmark` block (subset hash `fc15fa4f…`, exclusion counts, metrics) is identical. Difference: 0
+points, inside the SPEC-GAP-073 tolerance (≤ 1 pp recall@4, ≤ 0.01 MRR). The pgvector run did not touch
+`results.json`, `RESULTS.md`, `history.jsonl` or `TRENDS.md` (`eval/run_eval.py` writes `-pgvector` files and skips
+`record_history`; `tests/test_eval_baseline.py::test_pgvector_run_writes_separate_files_and_leaves_baseline_untouched`).
+The exact search with `ORDER BY distance, id` and identical in-process embeddings explain the identical ranking; the
+contract test `test_semantic_ranking_matches_between_chroma_and_pgvector` checks it directly.
+
+**Tests.** As reported to the architect by the engineering manager for the build tasks (not re-run by the architect;
+the verifier's full-gate run in `docs/phases/p7-report.md` is authoritative): the full suite run against a throwaway
+local PostgreSQL 17 / pgvector 0.8.7 and Valkey 9.1.3 gave **644 passed**, before the docs and eval tasks. The
+behaviour of this ADR is covered by `tests/test_vectorstore_contract.py` (16 tests, every `VectorStore` method on both
+stores, including `test_invalid_workspace_ids_raise_value_error_before_any_query`,
+`test_cleanup_removes_chunks_without_workspace_row`, `test_add_chunks_racing_clear_leaves_no_reachable_or_kept_chunks`,
+`test_text_with_nul_is_refused_not_altered`), `tests/test_storage_settings.py` (store selection, lazy imports),
+`tests/test_security.py` (`test_workspaces_are_isolated` over both stores) and
+`tests/test_server_state.py::test_state_modules_build_no_sql_from_values` /
+`test_stuck_account_lock_times_out_with_503_not_hang` / `test_connection_recovers_after_failed_transaction` /
+`test_pool_exhaustion_gives_503_not_hang` (connection rules). These runs settle the planning-time "not verified"
+items above for pgvector's `<=>`, the `::vector` text cast and the psycopg transaction handling, as far as those tests
+exercise them. Installed clients checked by the architect: `psycopg 3.3.6`, `redis 8.1.0` (`.venv`).
+
+**Build choices that differ from or refine the Decision text** (read in `src/pgvector_store.py`,
+`src/state_postgres.py`, `src/config.py`, `eval/run_eval.py`):
+- **Workspace row created by `add_chunks` only.** The Decision says the `vector_workspaces` row is "created on first
+  access to a workspace (as `get_or_create_collection` does)". As built, only `add_chunks` creates it; `retrieve`,
+  `count`, `list_files`, `all_chunks` and `delete_file` never write. Observable effects: an anonymous workspace's 24 h
+  age starts at its first upload on pgvector, but at its first access of any kind on ChromaDB; a workspace that never
+  received chunks has no row (and nothing to delete). Reads by an unknown id cannot create rows, which is the more
+  conservative behaviour. **Not yet accepted:** this is a behaviour difference against SPEC P7 "without changing
+  behaviour" and is flagged for the human at the P7 gate (accept, or change the code to create the row on read).
+- The upsert is `ON CONFLICT (workspace) DO UPDATE SET created = vector_workspaces.created` rather than `DO NOTHING`:
+  a no-op update that keeps `created` and takes the row lock, so `add_chunks` and `clear` (which deletes the row
+  first, then the chunks) serialise.
+- Time for `created` and the 24 h cutoff is `EXTRACT(EPOCH FROM clock_timestamp())` (see ADR 0015 Evidence).
+- Connections: a bounded standard-library pool per process (`state_postgres.transaction()`, shared), not "one
+  connection per thread"; this matches the "Connections and SQL" bullet of the Decision.
+- `retrieve` returns `[]` for a question containing U+0000 instead of querying (text is never altered).
+- `config.PG_SCHEMA = "trustrag"` is a module constant, not a setting. Tests patch it to a per-test schema; the eval
+  cannot, so `make eval-free-pgvector` uses schema `trustrag` of whichever database `DATABASE_URL` names, and clears
+  every workspace it built (`clear_created_workspaces`). On 2026-11-05 that was the throwaway local test database,
+  as reported by the manager (not verified by the architect), so the eval shared that database's `trustrag` schema
+  with any test that uses the default schema.
+- **Flagged for review (not verified by running):** `PgVectorStore._ensure_tables` runs its `CREATE TABLE IF NOT
+  EXISTS` through `state_postgres.transaction()` directly, not through `state_postgres.ensure_schema`, so it skips the
+  "schema must already exist" check. If schema `trustrag` is missing and the connecting role may create objects in
+  `public` (for example a superuser test URL), the vector tables would be created in `public` via the `search_path`.
+  With the compose init script (`REVOKE CREATE ON SCHEMA public FROM PUBLIC`, non-superuser app role) the statement
+  fails with `StorageUnavailable` instead.
+  **Resolved in the P7 fix round:** the vector tables are now created by `state_postgres.ensure_schema(extra=...)`, so
+  the "schema must exist" check and the single advisory lock apply to them as well.

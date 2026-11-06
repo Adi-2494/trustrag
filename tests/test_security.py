@@ -19,6 +19,9 @@ from src.injection_scanner import combine_results, filter_chunks, rule_scan
 from src.loader import LoaderError, load_pdf
 from src.safety import safe_markdown, sanitize_filename
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 
 def chunk(cid, text, page=1, file_name="doc.pdf"):
     return {"id": cid, "text": text, "file_name": file_name, "page": page}
@@ -114,24 +117,19 @@ def test_checker_prompt_warns_about_notes_to_fact_checkers():
 # ---------------------------------------------------------------------------
 # #4 Users can't see, delete or overwrite each other's documents
 # ---------------------------------------------------------------------------
-MODEL_CACHED = os.path.isdir(os.path.expanduser("~/.cache/chroma/onnx_models/all-MiniLM-L6-v2"))
+def test_workspaces_are_isolated(store_for_backend):
+    """P7-AC1 / threat 4, 48: on ChromaStore [local] and PgVectorStore [server] users never see each other's documents."""
+    real_store = (
+        store_for_backend  # one store per backend: no mixed ChromaStore x server or PgVectorStore x local cases
+    )
+    alice, mallory = real_store.new_workspace(), real_store.new_workspace()
 
-
-@pytest.mark.skipif(not MODEL_CACHED, reason="needs the local embedding model")
-def test_workspaces_are_isolated(monkeypatch, tmp_path):
-    from src import vectorstore
-
-    monkeypatch.setattr(config, "CHROMA_DIR", str(tmp_path))
-    monkeypatch.setattr(vectorstore, "_client", None)
-    monkeypatch.setattr(vectorstore, "_collections", {})
-    alice, mallory = vectorstore.new_workspace_id(), vectorstore.new_workspace_id()
-
-    vectorstore.add_chunks(alice, [chunk("handbook.pdf-p1-c0", "Annual leave is 24 days.", file_name="handbook.pdf")])
-    assert vectorstore.retrieve(mallory, "annual leave") == []  # can't read Alice's documents
-    vectorstore.add_chunks(mallory, [chunk("handbook.pdf-p1-c0", "Leave is unlimited!", file_name="handbook.pdf")])
-    vectorstore.delete_file(mallory, "handbook.pdf")  # same file name: only Mallory's copy
-    vectorstore.clear(mallory)  # "Clear all": only Mallory's workspace
-    assert vectorstore.retrieve(alice, "annual leave")[0]["text"] == "Annual leave is 24 days."
+    real_store.add_chunks(alice, [chunk("handbook.pdf-p1-c0", "Annual leave is 24 days.", file_name="handbook.pdf")])
+    assert real_store.retrieve(mallory, "annual leave", 4) == []  # can't read Alice's documents
+    real_store.add_chunks(mallory, [chunk("handbook.pdf-p1-c0", "Leave is unlimited!", file_name="handbook.pdf")])
+    real_store.delete_file(mallory, "handbook.pdf")  # same file name: only Mallory's copy
+    real_store.clear(mallory)  # "Clear all": only Mallory's workspace
+    assert real_store.retrieve(alice, "annual leave", 4)[0]["text"] == "Annual leave is 24 days."
 
 
 def test_workspace_ids_are_validated():
@@ -387,6 +385,25 @@ def test_docker_and_ci_use_pins():
     uses = re.findall(r"uses: (\S+)", workflow)
     assert uses and all(re.search(r"@[0-9a-f]{40}$", u) for u in uses)  # every action pinned to a commit
 
+    # P7 (threat 16 changed, plan review finding 7): compose and CI service images are pinned by digest too, and CI
+    # provides both server backends so the `[server]` tests cannot silently skip.
+    import yaml
+
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text(encoding="utf-8"))
+    images = {name: svc["image"] for name, svc in compose["services"].items() if "image" in svc}
+    unpinned = {
+        n: i for n, i in images.items() if i != "trustrag:latest" and not re.search(r"@sha256:[0-9a-f]{64}$", i)
+    }
+    assert unpinned == {}, f"compose images not pinned by digest: {unpinned}"
+    assert {"postgres", "redis"} <= set(compose["services"]), "compose has no server-profile postgres / redis services"
+    ci = yaml.safe_load(workflow)
+    job = ci["jobs"]["test"]
+    ci_images = [svc["image"] for svc in (job.get("services") or {}).values()]
+    assert len(ci_images) >= 2, "the CI test job has no Postgres / Redis service containers"
+    assert all(re.search(r"@sha256:[0-9a-f]{64}$", i) for i in ci_images), ci_images
+    env_text = str(job.get("env", "")) + str([step.get("env", "") for step in job["steps"]])
+    assert "TRUSTRAG_TEST_DATABASE_URL" in env_text and "TRUSTRAG_TEST_REDIS_URL" in env_text
+
 
 # ===========================================================================
 # P6 accounts (docs/phases/p6-plan.md section 4, threat rows 26-42; criterion P6-AC4)
@@ -560,6 +577,7 @@ def test_logout_and_password_reset_revoke_sessions(fast_kdf):
     assert sign_in(service, "alice", OTHER_PASSWORD)
 
 
+@pytest.mark.local_only
 def test_resolve_rejects_session_of_disabled_account_or_older_than_password_change(fast_kdf, clock):
     """Threat 37 (review #5): resolve joins `accounts`, so a session that survived disable / set-password is still refused."""
     import sqlite3
@@ -609,6 +627,7 @@ def test_login_issues_new_token_each_time_and_ignores_presented_token(sec_api):
     assert other.status_code == 200 and other.json()["username"] == "bobby" and other.json()["token"] != first
 
 
+@pytest.mark.local_only
 def test_session_cap_per_account_revokes_oldest(fast_kdf, clock):
     """Threat 29 (review #17): at most MAX_SESSIONS_PER_ACCOUNT live sessions; the oldest is revoked first."""
     import sqlite3
@@ -867,4 +886,252 @@ def test_threat_model_lists_p6_rows_with_existing_tests():
     assert "Account holder" in text  # the new actor
     lowered = text.lower()
     for limit in ("targeted lockout", "global sign-in lockout", "state db loss", "no mfa"):
+        assert limit in lowered, f"'Not defended against' lacks: {limit}"
+
+
+# ===========================================================================
+# P7 server backends (docs/phases/p7-plan.md 3.6 and 4; threat rows 43-63)
+# ===========================================================================
+_P7_SERVER_SECRET_NAMES = ("DATABASE_URL", "REDIS_URL", "POSTGRES_PASSWORD", "REDIS_PASSWORD")
+
+
+def _compose():
+    import yaml
+
+    return yaml.safe_load(Path("docker-compose.yml").read_text(encoding="utf-8"))
+
+
+def _env_map(service):
+    """environment: of a compose service as a dict (it may be written as a list of KEY=VALUE or as a mapping)."""
+    env = service.get("environment") or {}
+    if isinstance(env, list):
+        return {item.split("=", 1)[0]: (item.split("=", 1)[1] if "=" in item else "") for item in env}
+    return {k: "" if v is None else str(v) for k, v in env.items()}
+
+
+def _as_list(value):
+    if value is None:
+        return []
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _service_networks(service):
+    nets = service.get("networks")
+    return sorted(nets if isinstance(nets, list) else (nets or {}).keys())
+
+
+def test_compose_server_profile_hardening():
+    """Threat 47, 53, 58, 61, 52: the server profile exposes nothing, keeps secrets away from the UI, and sets backends."""
+    compose = _compose()
+    services = compose["services"]
+    server_names = ["postgres", "redis", "api-server-1", "api-server-2"]
+    for name in server_names:
+        assert name in services, f"service {name} is missing"
+        assert _as_list(services[name].get("profiles")) == ["server"], f"{name} must be only in profile 'server'"
+    for name in ("postgres", "redis"):
+        assert "ports" not in services[name], f"{name} must not publish ports"
+        assert _service_networks(services[name]) == ["backend"], f"{name} must be only on the backend network"
+    assert compose["networks"]["backend"].get("internal") is True
+    for name in ("api-server-1", "api-server-2"):
+        env = _env_map(services[name])
+        assert env.get("VECTOR_STORE") == "pgvector" and env.get("STATE_BACKEND") == "redis", name
+        assert "backend" in _service_networks(services[name]), name
+        assert ".env.server" in _as_list(services[name].get("env_file")), name
+    ui = services["ui"]
+    assert "backend" not in _service_networks(ui)
+    assert ".env.server" not in _as_list(ui.get("env_file"))
+    assert not set(_P7_SERVER_SECRET_NAMES) & set(_env_map(ui))
+    example = Path(".env.example").read_text(encoding="utf-8")
+    for line in example.splitlines():
+        assert not any(line.strip().startswith(n) for n in _P7_SERVER_SECRET_NAMES), f".env.example sets {line!r}"
+    # no trust authentication, no password on any command line or health check
+    raw = Path("docker-compose.yml").read_text(encoding="utf-8")
+    assert not re.search(r"POSTGRES_HOST_AUTH_METHOD\s*[:=]\s*[\"']?trust", raw)
+    assert "POSTGRES_PASSWORD_FILE" in _env_map(services["postgres"])
+    assert "POSTGRES_PASSWORD" not in _env_map(services["postgres"])
+    for name in server_names:
+        pieces = _as_list(services[name].get("command")) + _as_list(
+            (services[name].get("healthcheck") or {}).get("test")
+        )
+        flat = " ".join(str(p) for p in pieces)
+        assert "--requirepass" not in flat and not re.search(r"(^|\s)-a(\s|$)", flat), (
+            f"{name} passes a password on a command line"
+        )
+    # review: scram-sha-256 for local sockets and loopback too, published ports on loopback only, least-privilege init
+    initdb = _env_map(services["postgres"]).get("POSTGRES_INITDB_ARGS", "")
+    assert "--auth-local=scram-sha-256" in initdb and "--auth-host=scram-sha-256" in initdb, initdb
+    for name in server_names:
+        for port in _as_list(services[name].get("ports")):
+            assert str(port).startswith("127.0.0.1:"), f"{name} publishes {port!r} beyond loopback"
+    assert any(str(p).startswith("127.0.0.1:") for p in _as_list(services["api-server-1"].get("ports")))
+    init = Path("docker/postgres-init.sh").read_text(encoding="utf-8")
+    for needle in (
+        "NOSUPERUSER",
+        "NOCREATEDB",
+        "NOCREATEROLE",
+        "REVOKE CREATE ON SCHEMA public",
+        "schema trustrag authorization trustrag_app",
+    ):
+        assert needle.lower() in init.lower(), f"docker/postgres-init.sh lacks {needle!r}"
+    assert "APP_PASSWORD_FILE" in init and "cat " in init, "the app password must be read from a file"
+    assert not re.search(r"PASSWORD\s+'[^:']", init), "a literal password in the init script"
+    # the default stack is unchanged: `docker compose up` still starts only api + ui, SQLite + ChromaDB
+    for name in ("api", "ui"):
+        assert "profiles" not in services[name]
+        assert "VECTOR_STORE" not in _env_map(services[name]) and "STATE_BACKEND" not in _env_map(services[name])
+    assert services["api"]["env_file"] == ".env" and services["api"]["ports"] == ["127.0.0.1:8000:8000"]
+    assert _env_map(services["api"]) == {"CHROMA_DIR": "/app/chroma_db"}
+
+
+def test_compose_redis_sets_maxmemory():
+    """Threat 46, 55: Redis has an explicit memory bound with noeviction, and AOF persistence every second."""
+    conf = Path("docker/redis.conf").read_text(encoding="utf-8")
+    directives = {}
+    for line in conf.splitlines():
+        parts = line.split()
+        if parts and not parts[0].startswith("#"):
+            directives[parts[0].lower()] = " ".join(parts[1:]).lower()
+    assert re.fullmatch(r"\d+(mb|gb)", directives.get("maxmemory", "")), directives.get("maxmemory")
+    assert directives.get("maxmemory-policy") == "noeviction"
+    assert directives.get("appendonly") == "yes" and directives.get("appendfsync") == "everysec"
+    assert "requirepass" not in directives, "the Redis password must come from the secret mount, not this file"
+    redis = _compose()["services"]["redis"]
+    mounted = " ".join(str(v) for v in _as_list(redis.get("volumes"))) + " ".join(
+        str(c) for c in _as_list(redis.get("command"))
+    )
+    assert "redis.conf" in mounted
+
+
+def test_server_env_file_is_git_and_docker_ignored():
+    """Threat 53, 61: `.env.server` and the secret files never enter git or the image; only placeholders are committed."""
+    for ignore in (".gitignore", ".dockerignore"):
+        lines = [ln.strip() for ln in Path(ignore).read_text(encoding="utf-8").splitlines()]
+        assert ".env.server" in lines, f"{ignore} does not ignore .env.server"
+        assert any("secret" in ln and not ln.startswith("#") for ln in lines), (
+            f"{ignore} does not ignore the secret files"
+        )
+    example = Path(".env.server.example").read_text(encoding="utf-8")
+    values = [ln for ln in example.splitlines() if ln.startswith(("DATABASE_URL=", "REDIS_URL="))]
+    assert len(values) == 2
+    assert all(re.search(r"change|example|placeholder", v, re.I) for v in values), (
+        "the example must hold placeholders only"
+    )
+
+
+_P7_THREAT_TESTS = {  # plan section 4: row -> tests that must be cited in THREAT_MODEL.md
+    43: [
+        "test_login_rate_limit_is_shared_across_two_api_containers",
+        "test_rate_limit_is_shared_across_processes",
+        "test_login_rate_limit_is_shared_across_processes",
+    ],
+    44: [
+        "test_concurrent_wrong_logins_run_kdf_at_most_limit_times",
+        "test_refused_reservation_inserts_no_rows_for_any_key",
+    ],
+    45: [
+        "test_redis_down_login_gives_same_429_and_runs_no_kdf",
+        "test_redis_down_model_call_is_refused",
+        "test_storage_errors_give_fixed_503_without_driver_text",
+    ],
+    46: ["test_compose_redis_sets_maxmemory"],
+    47: ["test_compose_server_profile_hardening"],
+    48: [
+        "test_workspaces_are_isolated",
+        "test_invalid_workspace_ids_raise_value_error_before_any_query",
+        "test_delete_file_only_touches_that_file_in_that_workspace",
+        "test_state_modules_build_no_sql_from_values",
+    ],
+    49: [
+        "test_storage_errors_give_fixed_503_without_driver_text",
+        "test_settings_errors_never_echo_urls",
+        "test_admin_cli_storage_error_prints_fixed_message",
+    ],
+    50: [
+        "test_server_state_never_contains_plain_password_or_token",
+        "test_server_session_token_stored_only_as_sha256",
+        "test_app_db_role_is_not_superuser",
+    ],
+    51: [
+        "test_session_from_one_container_works_on_the_other",
+        "test_account_workspace_created_on_one_container_is_usable_on_the_other",
+    ],
+    52: [
+        "test_server_mode_creates_no_sqlite_file",
+        "test_mixed_backend_combinations_are_refused",
+        "test_compose_server_profile_hardening",
+    ],
+    53: ["test_compose_server_profile_hardening", "test_server_env_file_is_git_and_docker_ignored"],
+    54: [
+        "test_skewed_host_cannot_prune_other_hosts_attempts",
+        "test_skewed_host_cannot_extend_or_expire_sessions",
+        "test_skewed_host_cannot_age_out_anonymous_workspaces",
+    ],
+    55: ["test_redis_holds_only_counter_keys", "test_compose_redis_sets_maxmemory", "test_cache_entries_have_ttl"],
+    56: [
+        "test_cleanup_removes_chunks_without_workspace_row",
+        "test_add_chunks_racing_clear_leaves_no_reachable_or_kept_chunks",
+        "test_ocr_cache_entries_expire",
+    ],
+    57: [
+        "test_stuck_account_lock_times_out_with_503_not_hang",
+        "test_connection_recovers_after_failed_transaction",
+        "test_pool_exhaustion_gives_503_not_hang",
+    ],
+    58: ["test_app_db_role_is_not_superuser", "test_compose_server_profile_hardening"],
+    59: ["test_refused_call_never_returns_zero_wait", "test_login_refusal_with_subsecond_retry_is_still_refused"],
+    60: [
+        "test_postgres_down_login_response_is_same_for_unknown_wrong_and_right",
+        "test_refund_failure_after_session_does_not_503",
+    ],
+    61: ["test_compose_server_profile_hardening"],
+    62: ["test_call_limit_store_error_aborts_upload_not_rules_only"],
+    63: ["test_teardown_refuses_unexpected_schema_or_prefix"],
+}
+
+
+def _test_names_defined():
+    defined = set()
+    for path in Path("tests").rglob("test_*.py"):
+        defined |= set(re.findall(r"^def (test_\w+)\(", path.read_text(encoding="utf-8"), re.M))
+    return defined
+
+
+def test_every_threat_model_citation_exists():
+    """DoD: every `test_...` cited anywhere in THREAT_MODEL.md (all rows) is defined under tests/."""
+    text = Path("THREAT_MODEL.md").read_text(encoding="utf-8")
+    # not preceded by a path separator / word char (so `tests/integration/test_multi_host.py` is a file, not a test)
+    # and not followed by `.py` (a module name such as test_security.py).
+    cited = set(re.findall(r"(?<![/\w.])(test_\w+)(?!\w|\.py)", text))
+    assert cited, "THREAT_MODEL.md cites no tests?"
+    missing = sorted(cited - _test_names_defined())
+    assert missing == [], f"THREAT_MODEL.md cites tests that do not exist: {missing}"
+
+
+def test_p7_threat_plan_names_resolve_to_real_tests():
+    """Every test the plan cites for rows 43-63 exists in tests/ (guards typos in the mapping above)."""
+    cited = {name for names in _P7_THREAT_TESTS.values() for name in names}
+    assert cited <= _test_names_defined(), sorted(cited - _test_names_defined())
+
+
+def test_threat_model_lists_p7_rows_with_existing_tests():
+    """DoD: THREAT_MODEL.md rows 43-63 exist, cite the plan's tests, every cited test exists; changed rows and limits updated."""
+    text = Path("THREAT_MODEL.md").read_text(encoding="utf-8")
+    rows = {}
+    for line in text.splitlines():
+        match = re.match(r"^\|\s*(\d+)\s*\|", line)
+        if match:
+            rows[int(match.group(1))] = line
+    defined = _test_names_defined()
+    for number, expected in _P7_THREAT_TESTS.items():
+        assert number in rows, f"THREAT_MODEL.md has no row {number}"
+        cited = set(re.findall(r"test_\w+", rows[number]))
+        assert set(expected) <= cited, (number, sorted(set(expected) - cited))
+        assert cited <= defined, (number, sorted(cited - defined))
+    for number in (5, 26):
+        assert "across hosts" in rows[number].lower(), f"row {number} must say the limit is shared across hosts"
+    assert "digest" in rows[16].lower() and "compose" in rows[16].lower() and "service" in rows[16].lower()
+    assert "local mode" in rows[27].lower()
+    assert "per process" in rows[42].lower() and "across hosts" in rows[42].lower()
+    lowered = text.lower()
+    for limit in ("redis password", "postgres password", "docker inspect", "vacuum", "no tls", "all hosts"):
         assert limit in lowered, f"'Not defended against' lacks: {limit}"

@@ -34,6 +34,9 @@ from tests.p6_support import (
     sign_in,
 )
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 HEX = "0123456789abcdef" * 2
 
 
@@ -619,6 +622,7 @@ def test_disabled_account_keeps_workspaces(fast_kdf):
     assert service.list_files(ws, session=token) == ["handbook.pdf"]
 
 
+@pytest.mark.local_only
 def test_state_file_for_ownership_lives_in_the_state_db():
     """P6 / ADR 0012: ownership is durable SQLite state (tables from plan 2.3), not process memory."""
     import sqlite3

@@ -49,13 +49,19 @@ def _get_client() -> Any:
     return _client
 
 
-def _collection_name(workspace: str) -> str:
+def validate_workspace_id(workspace: str) -> str:
+    """Return the id if it is `<32 hex>` or `acct-<32 hex>`, else raise ValueError. Shared with `PgVectorStore`."""
     workspace = workspace or ""
-    if _WORKSPACE_ID.fullmatch(workspace):
-        return f"ws_{workspace}"
-    if _ACCOUNT_WORKSPACE_ID.fullmatch(workspace):
-        return "acct_" + workspace[len("acct-") :]
+    if _WORKSPACE_ID.fullmatch(workspace) or _ACCOUNT_WORKSPACE_ID.fullmatch(workspace):
+        return workspace
     raise ValueError("Invalid workspace id")
+
+
+def _collection_name(workspace: str) -> str:
+    workspace = validate_workspace_id(workspace)
+    if workspace.startswith("acct-"):
+        return "acct_" + workspace[len("acct-") :]
+    return f"ws_{workspace}"
 
 
 def _get_collection(workspace: str) -> Any:

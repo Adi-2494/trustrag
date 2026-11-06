@@ -18,6 +18,9 @@ from src.service import TrustRAGService, UploadRejected
 from src.settings import Settings
 from tests.fakes import FakeLLM, FakeStore
 
+# P7-AC1: every test in this module runs on the local backend and, when configured, the server backends.
+pytestmark = pytest.mark.usefixtures("storage_backend")
+
 
 def make_pdf(*lines: str) -> bytes:
     buffer = io.BytesIO()
@@ -216,20 +219,23 @@ def test_hybrid_retrieval_includes_keyword_only_hits():
 
 
 def _acquire_in_process(args):
-    db_path, attempts = args
-    from src import config as child_config
+    snapshot, attempts = args
     from src import state as child_state
+    from tests.server_support import apply_snapshot
 
-    child_config.STATE_DB = db_path
+    apply_snapshot(snapshot)  # P7: the backend (SQLite file, or Postgres + Redis) this test's parent is using
     return sum(child_state.try_acquire_call(limit=15) == 0 for _ in range(attempts))
 
 
 def test_rate_limit_is_shared_across_processes(tmp_path):
+    """P6 / P7-AC1 / P7-AC2 (`[server]`: four processes, one Redis, exactly the limit) / threat 43."""
     import multiprocessing
 
-    db = str(tmp_path / "shared.sqlite")
+    from tests.server_support import child_snapshot
+
+    snapshot = {**child_snapshot(), "STATE_DB": str(tmp_path / "shared.sqlite")}
     with multiprocessing.get_context("spawn").Pool(4) as pool:
-        allowed = pool.map(_acquire_in_process, [(db, 10)] * 4)  # 4 processes x 10 attempts, limit 15
+        allowed = pool.map(_acquire_in_process, [(snapshot, 10)] * 4)  # 4 processes x 10 attempts, limit 15
     assert sum(allowed) == 15
 
 
@@ -241,3 +247,29 @@ def test_api_request_id_matches_logs_and_response(api):
         f"/v1/workspaces/{ws}/questions", json={"question": "annual leave?"}, headers={"X-Request-ID": "trace-abc123"}
     )
     assert response.headers["X-Request-ID"] == "trace-abc123" == response.json()["request_id"]
+
+
+# ---------------------------------------------------------------------------- P7-AC4: ADRs
+def test_p7_adrs_amend_0003_and_0005_and_are_indexed():
+    """P7-AC4: ADRs 0013-0015 exist, are Accepted, say which older ADR they amend, are indexed, and cover the key decisions."""
+    from pathlib import Path
+
+    adr_dir = Path("docs/adr")
+    index = (adr_dir / "README.md").read_text(encoding="utf-8")
+    expected = {
+        "0013": (["0003"], ["cosine", "StorageUnavailable"]),
+        "0014": (["0005"], ["noeviction", "TIME", "StorageUnavailable"]),
+        "0015": (["0005", "0012"], ["FOR UPDATE", "advisory", "StorageUnavailable"]),
+    }
+    for number, (amends, phrases) in expected.items():
+        (path,) = adr_dir.glob(f"{number}-*.md")
+        text = path.read_text(encoding="utf-8")
+        title = text.splitlines()[0]
+        assert title.startswith(f"# {number} "), title
+        assert "amend" in title.lower() and all(old in text.splitlines()[0] or f"ADR {old}" in text for old in amends)
+        assert "**Status:** Accepted" in text
+        assert f"[{number}]({path.name})" in index, f"{number} is not in docs/adr/README.md"
+        for phrase in phrases:
+            assert phrase in text, (number, phrase)
+    for old in ("0003", "0005", "0012"):
+        assert list(adr_dir.glob(f"{old}-*.md")), f"ADR {old} is gone: amended ADRs must stay (not superseded)"

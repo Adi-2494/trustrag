@@ -306,6 +306,105 @@ makes account workspaces unreachable.
 to v1.0 after accounts were used, those workspaces are hidden (v1.0 neither lists nor serves them) but **not
 deleted**; their data stays in `chroma_db/` until you re-enable accounts or remove it yourself.
 
+### 🖥️ Server mode (optional, several API hosts)
+
+By default TrustRAG is single-node: embedded ChromaDB plus a SQLite state file, local mode. **Server mode** is an
+opt-in profile for running several API containers against shared servers: PostgreSQL with pgvector holds documents,
+accounts, sessions and caches; a Redis-protocol server (Valkey in compose, service name `redis`) holds the rate-limit
+counters, so limits are shared across hosts. Local mode is unchanged and remains the default: `docker compose up`
+never starts any of this. See ADRs 0013, 0014 and 0015.
+
+The two settings go together; any other combination (for example `VECTOR_STORE=pgvector` with SQLite) is refused at
+start:
+
+| Variable | Local mode (default) | Server mode |
+|---|---|---|
+| `VECTOR_STORE` | `chroma` | `pgvector` |
+| `STATE_BACKEND` | `sqlite` | `redis` |
+| `DATABASE_URL` | - | `postgresql://trustrag_app:<password>@postgres:5432/trustrag` |
+| `REDIS_URL` | - | `redis://:<password>@redis:6379/0` |
+
+The URLs carry passwords, so put them only in `.env.server` (never in `.env`, which the UI container reads too).
+
+1. **Create three secret files.** Compose mounts them into the containers, and the container users are not you, so
+   the files must be world-readable (0444) while the directory stays private (0700). Use a directory under your home
+   (colima shares `$HOME` but not `/private/tmp`):
+
+   ```bash
+   umask 077 && mkdir -p ~/.trustrag/server-secrets && chmod 700 ~/.trustrag ~/.trustrag/server-secrets
+   cd ~/.trustrag/server-secrets
+   openssl rand -hex 24 > pg_superuser_password
+   openssl rand -hex 24 > pg_app_password
+   printf 'requirepass %s\n' "$(openssl rand -hex 24)" > redis_auth.conf
+   chmod 444 pg_superuser_password pg_app_password redis_auth.conf
+   ```
+
+   Use another directory with `TRUSTRAG_SECRETS_DIR=/path` (it must also be under your home or the repository).
+2. **Create `.env.server`** from the template and make it match the secrets: the password in `DATABASE_URL` is the
+   content of `pg_app_password`, the one in `REDIS_URL` is the one after `requirepass `. Hex passwords need no URL
+   encoding; other characters do. `.env.server` is git- and docker-ignored, and only the two server API containers read it.
+
+   ```bash
+   cp .env.server.example .env.server      # then edit the two passwords
+   ```
+3. **Turn accounts on for the server APIs.** The compose `server` profile does not enable accounts by itself. Add
+   this line to `.env.server` (read only by `api-server-1` and `api-server-2`, so the default `api` stays as it is):
+
+   ```bash
+   echo 'ACCOUNTS_ENABLED=true' >> .env.server
+   ```
+
+   Without it the server APIs run in anonymous mode and there is no sign-in, so the multi-host integration tests below
+   cannot run.
+4. **Start only the server services** (the claude token file from the Docker section is needed as before). The `api`
+   and `ui` services have no profile, so a bare `docker compose --profile server up` would start them too; name the
+   services instead:
+
+   ```bash
+   docker compose --profile server up -d --build postgres redis api-server-1 api-server-2
+   ```
+
+   This starts Postgres, Valkey and two API containers, `api-server-1` on `127.0.0.1:8001` and `api-server-2` on
+   `127.0.0.1:8002`, which share all state; a session created on one works on the other. Postgres and Valkey publish
+   no ports and sit on an internal network that the UI container cannot join. There is no UI for the server APIs in
+   this profile: the default `ui` service (started by plain `docker compose up`) talks to the default local-mode `api`
+   (`TRUSTRAG_API_URL=http://api:8000`), not to `api-server-1` or `api-server-2`. To use a UI with a server API, run
+   Streamlit yourself with `TRUSTRAG_API_URL=http://127.0.0.1:8001`.
+5. **Create an account** (server mode starts empty; the CLI writes to Postgres):
+
+   ```bash
+   docker compose --profile server exec api-server-1 python -m src.accounts create alice
+   ```
+
+**Multi-host integration tests (optional).** `tests/integration/test_multi_host.py` checks that the two API containers
+really share sessions, documents and rate limits. It is not run in CI and is skipped unless the environment names both
+API URLs and an existing account (step 5). No test calls Claude.
+
+```bash
+TRUSTRAG_IT_API_URLS=http://127.0.0.1:8001,http://127.0.0.1:8002 \
+TRUSTRAG_IT_USERNAME=alice TRUSTRAG_IT_PASSWORD='<the password you set>' \
+  python -m pytest -q -m integration tests/integration
+```
+
+**Notes**
+
+- **The database role and schema are created for you, once.** `docker/postgres-init.sh` runs only on an *empty*
+  Postgres volume: it creates the pgvector extension, the role `trustrag_app` (not a superuser) with the password from
+  `pg_app_password`, and the schema `trustrag` it owns. If you change `pg_app_password` later, the existing role keeps
+  its old password: change it with `ALTER ROLE` or recreate the volume (which deletes the data).
+- **No migration.** Existing local data (`chroma_db/`, SQLite state, accounts) is not copied into server mode and is not
+  changed by it; server mode starts empty. Switching back shows the old local data again. Re-upload documents and
+  re-create accounts (`docker compose --profile server exec api-server-1 python -m src.accounts create alice`).
+- **Back up Postgres.** The `trustrag-pgdata` volume holds everything durable, for example:
+  `docker compose --profile server exec postgres pg_dump -U postgres -d trustrag -Fc > trustrag.dump`
+  (the Valkey volume holds counters only; losing it only resets rate limits). Keep dumps as protected as the data.
+- **Deleted text and `VACUUM`.** Deleting a workspace or document removes the rows, but the text stays in Postgres
+  pages and WAL until autovacuum or `VACUUM` has run, and old backups keep it. Run `VACUUM` if that matters to you.
+- **Outages are refused, not ignored.** If Postgres or Valkey is down, sign-in gives the usual 429 and other calls give
+  a fixed 503 ("Storage is temporarily unavailable"); limits are never switched off.
+- **No TLS inside the network** and the URLs are visible to `docker inspect` of the server API containers; see
+  [THREAT_MODEL.md](THREAT_MODEL.md).
+
 ---
 
 ## ⚙️ Configuration
@@ -325,6 +424,8 @@ Set in `.env` (validated at startup - a bad value stops the app with a clear mes
 | `LOG_LEVEL` | `INFO` | JSON log verbosity |
 | `CHROMA_DIR` | `chroma_db` | Data directory (vectors + state database, including accounts); back it up |
 | `ACCOUNTS_ENABLED` | `false` | Per-user accounts and persistent workspaces; see [Accounts](#-accounts-optional) for the related settings |
+| `VECTOR_STORE` / `STATE_BACKEND` | `chroma` / `sqlite` | Local mode, or `pgvector` / `redis` together for server mode; see [Server mode](#-server-mode-optional-several-api-hosts) |
+| `DATABASE_URL` / `REDIS_URL` | empty | Server mode only; contain passwords, set in `.env.server` |
 
 Product tuning (models, chunk size, thresholds, prompt versions) lives in [`src/config.py`](src/config.py).
 **Subscription mode is for your own use;** deployments serving other people need an API key under Anthropic's terms.
@@ -398,7 +499,7 @@ injection scanner that fails closed, escaping of all text inside prompt tags, ve
 rendering (no images or link targets from the model), private workspaces, localhost-only defaults, an optional
 password and API key, cross-process usage limits, hash-locked dependencies and digest-pinned images.
 
-The full analysis - attackers, 42 attacks with their mitigations and the tests that prove them, and what is **not**
+The full analysis - attackers, 63 attacks with their mitigations and the tests that prove them, and what is **not**
 defended against - is in [`THREAT_MODEL.md`](THREAT_MODEL.md). To report a vulnerability, see [`SECURITY.md`](SECURITY.md).
 
 ---
@@ -417,8 +518,10 @@ defended against - is in [`THREAT_MODEL.md`](THREAT_MODEL.md). To report a vulne
   it will score high.
 - **No filter catches every prompt injection.** The scanner, prompt escaping and fact-check overlap so that a single
   miss is not enough, but a novel attack could still influence an answer.
-- **Single-node storage.** ChromaDB is embedded and the shared state is SQLite, so one host serves one data
-  directory. Multiple hosts would need a server-based vector store and Redis (ADRs 0003 and 0005).
+- **Local mode is single-node.** ChromaDB is embedded and the shared state is SQLite, so one host serves one data
+  directory. Several hosts need the opt-in [server mode](#-server-mode-optional-several-api-hosts) (pgvector + Redis
+  protocol, ADRs 0013-0015), which has no TLS between containers, no data migration from local mode, and keeps
+  deleted text in Postgres until `VACUUM`.
 - **Accounts are opt-in and minimal.** Without `ACCOUNTS_ENABLED`, access control is a shared password / API key plus
   unguessable workspace ids; workspaces live for 24 hours and are lost on a browser refresh in the UI. With accounts
   there is no sign-up, MFA, breached-password check or audit trail beyond logs, and sign-in uses plain HTTP unless

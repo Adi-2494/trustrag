@@ -45,9 +45,15 @@ flowchart LR
     AUTH -. implemented by .-> ACC
     ACC --> PW
     LLM --> CLAUDE[(Claude: subscription via<br/>Claude Code, Anthropic API<br/>or AWS Bedrock)]
-    VS --> CHROMA[(ChromaDB, one collection per workspace<br/>ws_&lt;hex&gt; anonymous, acct_&lt;hex&gt; accounts)]
-    SVC & ACC -.-> STATE[(SQLite state<br/>caches + rate limits,<br/>accounts, sessions, ownership)]
+    VS -->|local, default| CHROMA[(ChromaDB, one collection per workspace<br/>ws_&lt;hex&gt; anonymous, acct_&lt;hex&gt; accounts)]
+    VS -->|server| PGV[(Postgres + pgvector<br/>vector_workspaces, chunks)]
+    SVC & ACC & LLM -.-> STATE[[src/state.py<br/>same public functions]]
+    STATE -->|local, default| SQLITE[(SQLite state<br/>caches + rate limits,<br/>accounts, sessions, ownership)]
+    STATE -->|server| SRV[(Valkey: rate-limit counters<br/>Postgres: accounts, sessions,<br/>ownership, caches)]
 ```
+
+Every store sits behind an existing seam: vectors behind `VectorStore`, everything else behind the public functions of
+`src/state.py`. The two storage modes are described in [Storage modes](#storage-modes-p7).
 
 | Layer | Responsibility | Key files |
 |---|---|---|
@@ -57,6 +63,7 @@ flowchart LR
 | **Accounts** | Local password accounts (ADR 0011): scrypt hashing, username canonicalisation, password policy, rate-limited login, server-side sessions, admin CLI. | `src/accounts.py`, `src/passwords.py` |
 | **Pipeline** | One responsibility per module (load, OCR, chunk, scan, retrieve, generate, verify). | `src/*.py` |
 | **Interfaces** | `LLMClient`, `VectorStore` and `Authenticator` protocols, so providers, stores and (in P8) sign-in methods are swappable and tests need no monkeypatching. | `src/interfaces.py`, `src/llm.py` |
+| **Storage** | Store selection by settings (local or server mode), the server `VectorStore`, and the server back ends of `src/state.py`. Local mode never imports the server drivers. | `src/storage.py`, `src/pgvector_store.py`, `src/state_postgres.py`, `src/state_redis.py` |
 | **Cross-cutting** | Validated settings, shared state, structured logs and metrics, input/output safety helpers. | `src/settings.py`, `src/config.py`, `src/state.py`, `src/observability.py`, `src/safety.py` |
 
 ## Data flow
@@ -216,11 +223,15 @@ Everything that comes from a document or from a model is treated as **untrusted*
 | Sign-in | username, password, raw login body, client address | body read by hand (size cap, fixed 401, no echo); canonical ASCII usernames; atomic per-user / per-client / global rate limit before any hashing; one scrypt per attempt (`DUMMY_HASH` for unknown users); bounded hashing slots; uvicorn `--no-proxy-headers` |
 | Sessions | bearer token | random 256-bit tokens, new at each login; SHA-256 only at rest; header only; idle and absolute expiry; revoked by logout, password change and disable; per-account cap |
 | Workspace ownership | workspace id, session | `_authorize` first in every workspace method, always on; 404 identical to an unknown id; `acct-` ids fail closed without a live owner row; tombstones; re-authorise after upload writes |
-| State file | anyone with file-system access | state directory 0700, DB and `-wal` / `-shm` 0600 (tightened on open); salted scrypt hashes; token hashes only |
+| State file (local mode) | anyone with file-system access | state directory 0700, DB and `-wal` / `-shm` 0600 (tightened on open); salted scrypt hashes; token hashes only |
+| Server stores (server mode) | anyone who can reach Postgres or Valkey, driver error text, a host with a wrong clock | no published ports, `internal` backend network without the UI, password authentication (scram-sha-256 also inside the container), non-superuser role `trustrag_app` owning only schema `trustrag`, bound parameters only, fixed error text, store clocks; see [Storage modes](#storage-modes-p7) and THREAT_MODEL rows 43-63 |
 
 The full analysis, including what is *not* defended against, is in [`THREAT_MODEL.md`](THREAT_MODEL.md).
 
 ## State
+
+This section describes **local mode** (the default). Where each piece of state lives in server mode is in
+[Storage modes](#storage-modes-p7).
 
 | Data | Where | Lifetime |
 |---|---|---|
@@ -238,6 +249,169 @@ The state DB (`<CHROMA_DIR>/trustrag_state.sqlite`) was a cache in v1.0. Since P
 (accounts and ownership, ADR 0012), so it must be backed up with `chroma_db/` and must not be wiped as a cache: losing
 it makes account workspaces unreachable (not deleted). On open, `CHROMA_DIR` is created or tightened to 0700 and the
 DB, `-wal` and `-shm` files to 0600. All new tables are additive; the v1.0 tables are unchanged.
+
+## Storage modes (P7)
+
+TrustRAG has two storage modes. **Local mode is the default** and is the v1.0/P6 behaviour, unchanged: one host,
+no server. **Server mode** is opt-in and lets several API containers, on one or more hosts, share documents, accounts
+and rate limits. Decisions: [ADR 0013](docs/adr/0013-pgvector-vector-store-opt-in.md) (pgvector store),
+[ADR 0014](docs/adr/0014-redis-for-shared-counters-and-caches.md) (Valkey counters, caches in Postgres),
+[ADR 0015](docs/adr/0015-postgres-for-durable-account-state-in-server-mode.md) (durable account state in Postgres).
+They amend ADRs 0003, 0005 and 0012 for server mode only.
+
+| Mode | `VECTOR_STORE` | `STATE_BACKEND` | Needs | Hosts |
+|---|---|---|---|---|
+| **local** (default) | `chroma` | `sqlite` | nothing | one |
+| **server** | `pgvector` | `redis` | `DATABASE_URL` (`postgresql://` or `postgres://`), `REDIS_URL` (`redis://` or `rediss://`) | many |
+
+`Settings` accepts only these two combinations. Any other combination, or a server mode without both URLs, fails at
+startup with a fixed sentence that names the setting and never repeats a URL (`hide_input_in_errors`, URL fields with
+`repr=False`, and a hand-built validation error with no `input`). "Redis" in setting and module names means the Redis
+protocol; the server in compose and CI is Valkey 9.1.3 (ADR 0014).
+
+### Components
+
+```mermaid
+flowchart LR
+    SVC[TrustRAGService] -.-> VS[[VectorStore]]
+    EVAL[eval/run_eval.py] --> FAC
+    SVC -->|store=None| FAC[src/storage.py<br/>make_vector_store]
+    FAC -->|chroma| CH[ChromaStore<br/>src/vectorstore.py]
+    FAC -->|pgvector| PGS[PgVectorStore<br/>src/pgvector_store.py]
+    SVC & ACC[accounts] & LLM[llm] & SCAN[scanner / ocr] --> ST[src/state.py<br/>dispatch on STATE_BACKEND]
+    ST -->|sqlite| SQ[(SQLite WAL file)]
+    ST -->|redis: call window,<br/>login attempts| SR[src/state_redis.py] --> RD[(Valkey<br/>Lua scripts, TIME)]
+    ST -->|redis: accounts, sessions,<br/>ownership, caches| SP[src/state_postgres.py]
+    PGS -->|"transaction()"| SP
+    SP --> PG[(Postgres 17 + pgvector 0.8.7<br/>schema trustrag)]
+    CH --> CHD[(ChromaDB embedded)]
+    PGS -. same MiniLM embeddings in-process .-> EMB[ChromaDB DefaultEmbeddingFunction]
+```
+
+| Module | Role |
+|---|---|
+| `src/storage.py` | `make_vector_store()` reads `config.VECTOR_STORE` and returns `ChromaStore` or `PgVectorStore`. Used by `TrustRAGService(store=None)` and by `eval/run_eval.py`. Imports lazily. |
+| `src/state.py` | Unchanged public functions (names, signatures, return shapes). Each one dispatches on `config.STATE_BACKEND`, read at call time: SQLite code as before, or `state_redis` / `state_postgres`. In server mode no SQLite file is opened. Defines `StorageUnavailable`. |
+| `src/state_redis.py` | Model-call window and login reservation as Lua scripts, login refund as one `MULTI`/`EXEC`. One client per process (rebuilt after a fork or a URL change), connect and socket timeouts of `REDIS_TIMEOUT_SECONDS` (5 s). |
+| `src/state_postgres.py` | Accounts, sessions, ownership, tombstones and caches. Owns the shared connection handling: `transaction()` yields a pooled autocommit connection inside one transaction block. |
+| `src/pgvector_store.py` | `PgVectorStore`, the server `VectorStore`. Opens no connections of its own; it uses `state_postgres.transaction()`. |
+
+`psycopg` and `redis` are imported inside functions only, so local mode runs without them being importable
+(`tests/test_storage_settings.py::test_local_mode_never_imports_psycopg_or_redis`).
+
+### Where each piece of state lives
+
+| Data | Local mode | Server mode | Clock in server mode | Lifetime in server mode |
+|---|---|---|---|---|
+| Chunks and embeddings | ChromaDB, one collection per workspace | Postgres `chunks` (shared table, `workspace` column, `embedding vector(384)`) + `vector_workspaces` (one row per workspace, `created`) | DB clock (`created`, 24 h cutoff) | as local: anonymous workspaces deleted 24 h after `created` unless in `keep`; account workspaces only when in `purge` |
+| Model-call window | SQLite `calls` | Valkey ZSET `<prefix>calls` | Valkey `TIME` | rolling window; key expires with the window (`PEXPIRE`) |
+| Login attempts | SQLite `login_attempts` | Valkey ZSET `<prefix>login:<key>` per rate-limit key (key is `sha256(...)` or `global`) | Valkey `TIME` | each key pruned against its own window; key expires with its window |
+| OCR and scan caches | SQLite `cache`, no expiry | Postgres `cache` | DB clock | 24 h (`SERVER_CACHE_TTL_HOURS`): older rows ignored on read, deleted on each write |
+| Accounts | SQLite `accounts` | Postgres `accounts` | DB clock (`created`, `password_changed`) | until an administrator changes it |
+| Sessions | SQLite `sessions` | Postgres `sessions` (+ `seq` identity column for the cap tie-break) | DB clock | idle 2 h, absolute 24 h, cap 10, as P6 |
+| Workspace ownership + tombstones | SQLite `workspaces` | Postgres `workspaces` | DB clock (`created`) | forever; tombstones kept |
+| Metrics | process memory | process memory (per container) | - | process lifetime |
+
+`<prefix>` is `config.REDIS_PREFIX` (`trustrag:{t}:`; `{t}` is a hash tag, so every key of one deployment maps to one
+slot). Valkey holds only these two counter families, so its memory is bounded by the rate limits, not by documents.
+Postgres tables live in schema `config.PG_SCHEMA` (`trustrag`, a module constant, not a setting), owned by the role
+`trustrag_app`. `docker/postgres-init.sh` (run once, as the superuser, on an empty volume) creates the `vector`
+extension in `public`, the role (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`, password read from a
+secret file), the schema, and revokes `CREATE` on `public` from `PUBLIC`. The application creates its tables with
+`CREATE TABLE IF NOT EXISTS` under a Postgres advisory lock, so two containers starting at once do not race
+(`test_concurrent_schema_initialisation_succeeds`). It never creates the schema: `state_postgres.ensure_schema` refuses
+(`StorageUnavailable`) when the schema is missing, so a wrong schema cannot put the state tables into `public`.
+`PgVectorStore` creates its two tables under its own advisory lock **without** that schema check (flagged for review in
+ADR 0013 Evidence); with the compose init script the app role cannot create tables in `public` anyway.
+
+Backups in server mode mean the Postgres database (documents and durable state). Valkey holds only counters; losing it
+resets the rate limits. Switching modes migrates nothing: local data stays on disk, untouched and hidden.
+
+### Connections and SQL
+
+- Autocommit connections; every operation is one explicit transaction block (`conn.transaction()`), committed on
+  success and rolled back on any exception.
+- A standard-library bounded pool per process: at most `PG_MAX_CONNECTIONS_PER_PROCESS` (10) connections, a caller
+  waits at most `PG_POOL_WAIT_SECONDS` (5 s), then `StorageUnavailable`. A connection that failed, or is not idle after
+  its transaction, is closed instead of returned. After a fork the child never reuses the parent's sockets.
+- Each new connection sets `search_path = trustrag, public` (identifier bound with `psycopg.sql.Identifier`) and
+  `lock_timeout` 5 s, `statement_timeout` 15 s, `idle_in_transaction_session_timeout` 30 s, so a stuck row lock ends in
+  a 503, not a hung worker.
+- SQL text is constant: values are always bound parameters (static scan:
+  `test_state_modules_build_no_sql_from_values`). Every `chunks` statement has a `workspace = %s` predicate, and the
+  workspace id is validated with the same rules as ChromaDB (`validate_workspace_id`, shared with `src/vectorstore.py`)
+  before any SQL runs.
+
+### How the P6 guarantees are kept in server mode
+
+| Guarantee | Server implementation |
+|---|---|
+| Call window check-and-record | one Lua script on Valkey `TIME`: prune, count, refuse or `ZADD`, `PEXPIRE` |
+| Login reservation over user / client / global keys | one Lua script over all keys; each key pruned against its own window; if any key is full nothing is inserted; otherwise the same attempt id is added to every key |
+| Refund only this attempt | `ZREM <attempt id>` per key in one `MULTI`/`EXEC` |
+| Script replies | always `{status, seconds-as-string}`; Python parses the string and floors every refusal at 1 s, so a refusal can never read as `0` = allowed |
+| `create_session(expected_hash)` re-check + cap | one transaction: `SELECT … FOR UPDATE` on the account row, refuse if missing, disabled or hash changed, insert, delete beyond the newest `max_per_account` by `created DESC, seq DESC` |
+| Rehash compare-and-set | single conditional `UPDATE` |
+| Set password / disable + revoke sessions | one transaction (`UPDATE` takes the row lock, then `DELETE` sessions) |
+| Workspace cap | one transaction under `pg_advisory_xact_lock(sha256("ws:" + account_id))` |
+| Tombstone, never reuse | single conditional `UPDATE`; rows never deleted |
+| Chunk never without its workspace row | `add_chunks` upserts the `vector_workspaces` row first (taking its row lock) and the chunks in the same transaction; `clear` deletes the row, then the chunks; `cleanup` also deletes chunks whose workspace row is gone |
+
+### Clocks
+
+In server mode the stores' clocks are authoritative and the `now` arguments passed to `src/state.py` are ignored, so a
+host whose clock is fast or slow can neither prune other hosts' rate-limit rows nor shorten, extend or age out
+sessions, caches or anonymous workspaces:
+
+- Valkey scripts read `TIME`.
+- Postgres statements use `clock_timestamp()` (the current time when the statement runs, not the transaction start).
+- A new session keeps the **remaining** lifetime the caller asked for: `expires = DB time + (caller's expires − caller's
+  time.time())`. `SessionInfo.expires_at` returned to the client is computed on the API host and is informational.
+- `get_session_principal` judges expiry on the DB clock and returns `last_seen` translated into the caller's clock, so
+  the caller's "touch at most every 60 s" rule still works.
+
+`config.STATE_CLOCK` (`"store"`) is a module constant, not a `Settings` field, so it cannot be changed from the
+environment (`test_state_clock_override_is_not_an_environment_setting`); only tests that freeze time set it to
+`"caller"`. Clock tests: `test_skewed_host_cannot_prune_other_hosts_attempts`,
+`test_skewed_host_cannot_extend_or_expire_sessions`, `test_skewed_host_cannot_age_out_anonymous_workspaces`.
+
+### Failure handling (fail closed)
+
+A Postgres or Valkey error, timeout, full pool or unexpected script reply becomes `StorageUnavailable`. It is not a
+`ValueError` (which the API maps to 404) and not an `LLMError` (which would let the injection scanner fall back to rules
+only). Its message is fixed; the driver error, whose text can contain hosts, users or passwords, is kept only as
+`__cause__` and never shown.
+
+| Where | What the caller sees |
+|---|---|
+| Any API route except login | `503 {"detail":"Storage is temporarily unavailable. Please try again."}` (`api/main.py` handler) |
+| `POST /v1/auth/login` | the existing `429 {"detail":"Too many sign-in attempts. Please try again later."}` with `Retry-After: 1`, the same for unknown user, wrong and right password; logged as `auth.storage_unavailable` with no username |
+| Refund after the session was created | logged as `auth.refund_failed` and swallowed; the user keeps the session that was issued |
+| Model-call limit during upload | `StorageUnavailable` propagates out of the scanner, so the upload is refused with 503 instead of being scanned by rules only |
+| Cache read | an error is an error, never treated as a cache miss |
+| Streamlit UI (in-process) | the same fixed message (`st.error`), then the run stops; no traceback |
+| Admin CLI | `Error: Storage is temporarily unavailable. Please try again.`, exit 1 |
+
+Local mode never raises `StorageUnavailable`. Tests: `tests/test_server_state.py` (`test_storage_errors_give_fixed_503_without_driver_text`,
+`test_redis_down_login_gives_same_429_and_runs_no_kdf`, `test_postgres_down_login_response_is_same_for_unknown_wrong_and_right`,
+`test_refund_failure_after_session_does_not_503`, `test_call_limit_store_error_aborts_upload_not_rules_only`,
+`test_cache_error_is_not_treated_as_a_miss`, `test_ui_storage_unavailable_shows_fixed_message`,
+`test_admin_cli_storage_error_prints_fixed_message`, `test_stuck_account_lock_times_out_with_503_not_hang`,
+`test_pool_exhaustion_gives_503_not_hang`).
+
+### Differences from the P7 plan
+
+What was built differs from `docs/phases/p7-plan.md` and the ADR texts in these points:
+
+| Plan / ADR text | Built | Status |
+|---|---|---|
+| DB clock as `extract(epoch from now())` (ADR 0015) | `clock_timestamp()` | recorded in ADR 0015 Evidence |
+| `create_session` keeps the caller's lifetime `expires - created`, re-based on the DB clock (ADR 0015) | re-bases the caller's **remaining** lifetime `expires - time.time()` (differs by the milliseconds between computing `expires` and the insert) | recorded in ADR 0015 Evidence |
+| `vector_workspaces` row created "on first access to a workspace", like `get_or_create_collection` (ADR 0013) | created only by `add_chunks`; reads never create it. An anonymous workspace's 24 h age therefore starts at its first upload on pgvector, and at its first access of any kind on ChromaDB | recorded in ADR 0013 Evidence; **flagged for the human gate** |
+| `ON CONFLICT DO NOTHING` for the workspace row (ADR 0013) | `ON CONFLICT … DO UPDATE SET created = vector_workspaces.created` (a no-op update that takes the row lock, serialising `add_chunks` with `clear`) | recorded in ADR 0013 Evidence |
+| "One connection per thread, no pool package" (ADR 0013, first bullet) and "bounded per-process pool" (same ADR, later bullet) | bounded stdlib pool per process | consistent with the later bullet |
+| Per-test schema for tests (`config.PG_SCHEMA` patched) | as planned for tests; `PG_SCHEMA` is a module constant, so `make eval-free-pgvector` always uses schema `trustrag` of whatever database `DATABASE_URL` names (it clears every workspace it creates) | recorded in ADR 0013 Evidence |
+| Login storage error → existing 429 + `Retry-After` | `Retry-After: 1` (`LoginRateLimited(1.0)`) | as planned |
 
 ## Observability
 
@@ -290,11 +464,52 @@ related threats are in [`THREAT_MODEL.md`](THREAT_MODEL.md).
 | Single process | `streamlit run app.py` | local use, demos |
 | One container | `docker run ... trustrag` | local use without a Python setup |
 | API + UI | `docker compose up` | separate backend; other clients can use the API |
+| Server mode, two API containers | `docker compose --profile server up -d --build postgres redis api-server-1 api-server-2` (plus `ACCOUNTS_ENABLED=true` in `.env.server`; the default `api`/`ui` have no profile and are not started this way) | several API containers sharing documents, accounts and rate limits (P7) |
 
 In every shape, accounts are off unless `ACCOUNTS_ENABLED=true`, and accounts are created with
-`python -m src.accounts create <username>`, run as the service user so the 0600 state file keeps its owner. The API
+`python -m src.accounts create <username>`, run as the service user so the 0600 state file keeps its owner (in server
+mode the CLI must run with the server settings, for example `docker compose exec api-server-1 python -m src.accounts
+…`, and writes to Postgres). The API
 container runs uvicorn with `--no-proxy-headers`. In compose, every UI sign-in reaches the API from the UI container's
 address, so the per-username limit is the main brute-force control there (see [`THREAT_MODEL.md`](THREAT_MODEL.md)).
 
-ChromaDB runs embedded, so one API process owns a data directory. Scaling out beyond one API instance would
-mean moving vectors to a server-based store behind the same `VectorStore` interface (see ADR 0003).
+In local mode ChromaDB runs embedded, so one API process owns a data directory. Scaling out uses server mode
+(see [Storage modes](#storage-modes-p7)).
+
+### Default compose and the `server` profile
+
+```mermaid
+flowchart LR
+    subgraph default["default network"]
+        UI[ui :7860] --> API[api :8000<br/>local mode]
+        A1[api-server-1 :8001]
+        A2[api-server-2 :8002]
+    end
+    subgraph backend["backend network (internal: true)"]
+        PG[(postgres<br/>pgvector 0.8.7-pg17)]
+        VK[(redis service<br/>Valkey 9.1.3)]
+    end
+    API --> VOL[(trustrag-data volume<br/>ChromaDB + SQLite)]
+    A1 & A2 --> PG & VK
+```
+
+| Service | Profile | Networks | Published port | Settings and secrets |
+|---|---|---|---|---|
+| `api` | none (default) | default | `127.0.0.1:8000` | `.env`; local mode; unchanged by P7 |
+| `ui` | none (default) | default | `127.0.0.1:7860` | `.env`; client of `api`; never sees backend URLs and is not on `backend` |
+| `postgres` | `server` | `backend` only | none | superuser password via `POSTGRES_PASSWORD_FILE` (compose file secret); `POSTGRES_INITDB_ARGS=--auth-local=scram-sha-256 --auth-host=scram-sha-256`; `docker/postgres-init.sh` creates the extension, role and schema; volume `trustrag-pgdata` |
+| `redis` (Valkey) | `server` | `backend` only | none | `docker/redis.conf`: `appendonly yes`, `appendfsync everysec`, `maxmemory 64mb`, `maxmemory-policy noeviction`, `include` of the secret file holding `requirepass`; healthcheck reads the password into `REDISCLI_AUTH`; volume `trustrag-redisdata` |
+| `api-server-1`, `api-server-2` | `server` | `backend` + default | `127.0.0.1:8001`, `127.0.0.1:8002` | `.env` + `.env.server` (backend URLs, read by these two services only); `VECTOR_STORE=pgvector` and `STATE_BACKEND=redis` set explicitly in compose |
+
+`docker compose up` without a profile starts only `api` and `ui`, exactly as before P7. Images other than the locally
+built `trustrag:latest` are pinned by digest, in compose and in the CI `services:` (`test_docker_and_ci_use_pins`).
+Secrets for the server profile are three files in `$TRUSTRAG_SECRETS_DIR` (default `~/.trustrag/server-secrets`):
+`pg_superuser_password`, `pg_app_password`, `redis_auth.conf`. No password appears on a command line in compose.
+`.env.server` is git- and docker-ignored. The two server API containers exist so the verifier can run
+`tests/integration/test_multi_host.py` against two real containers (P7-AC2); there is no server-mode UI service.
+
+CI (`.github/workflows/tests.yml`) runs the same Postgres and Valkey images as job service containers with throwaway
+passwords and sets `TRUSTRAG_TEST_DATABASE_URL` / `TRUSTRAG_TEST_REDIS_URL`, so the `[server]` test cases run in CI
+instead of skipping. Each server test gets its own schema `test_<32 hex>` and key prefix `trustrag-test:<32 hex>:`,
+dropped afterwards only if they match those patterns and the test URL differs from `DATABASE_URL`. The two-container
+integration test is not run in CI.
